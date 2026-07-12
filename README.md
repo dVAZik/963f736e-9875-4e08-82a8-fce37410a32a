@@ -523,8 +523,3 @@ SettingsTab:CreateTextBox({
 | Electron | ✅ Полная поддержка |
 
 ---
-
----
-
-**Сделано с 💖 для комьюнити Roblox Exploiting**
-```
