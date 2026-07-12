@@ -127,6 +127,31 @@ Library.Themes = {
 	}
 }
 
+-- =================== СОЗДАНИЕ БАЗОВОГО GUI ===================
+local BaseGui = Utility.Create("ScreenGui", {
+	Name = "NekoUI_Base",
+	Parent = Services.CoreGui,
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true
+})
+
+-- UI Scale для адаптивности
+local guiService = game:GetService("GuiService")
+local screenResolution = guiService:GetScreenResolution()
+
+Utility.Create("UIScale", {
+	Parent = BaseGui,
+	Scale = math.clamp(screenResolution.X / 1920, 0.6, 1.5)
+})
+
+-- Создаем главный контейнер для всех окон
+local MainContainer = Utility.Create("Frame", {
+	Name = "MainContainer",
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	Parent = BaseGui
+})
+
 -- =================== Класс Window ===================
 local Window = {}
 Window.__index = Window
@@ -137,25 +162,15 @@ function Window.new(config)
 	self.Theme = Library.Themes[config.Theme] or Library.Themes.Cyberpunk
 	self.Key = config.Key or Enum.KeyCode.Insert
 	self.MobileEnabled = config.MobileButton ~= false
-	self.Elements = {}
 	self.Tabs = {}
 	self.CurrentTab = nil
 	
-	-- Создание ScreenGui
-	self.Gui = Utility.Create("ScreenGui", {
-		Name = "NekoUI_" .. self.Name,
-		Parent = Services.CoreGui,
-		ResetOnSpawn = false,
-		IgnoreGuiInset = true
-	})
-	
-	-- UI Scale для адаптивности (ИСПРАВЛЕНО - используем GuiService)
-	local guiService = game:GetService("GuiService")
-	local screenResolution = guiService:GetScreenResolution()
-	
-	self.UIScale = Utility.Create("UIScale", {
-		Parent = self.Gui,
-		Scale = math.clamp(screenResolution.X / 1920, 0.6, 1.5)
+	-- Создаем отдельный контейнер для этого окна
+	self.WindowContainer = Utility.Create("Frame", {
+		Name = "Window_" .. self.Name,
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = MainContainer
 	})
 	
 	-- Главное окно
@@ -166,7 +181,7 @@ function Window.new(config)
 		BackgroundColor3 = self.Theme.Background,
 		BorderSizePixel = 0,
 		Visible = false,
-		Parent = self.Gui
+		Parent = self.WindowContainer
 	})
 	
 	Utility.Create("UICorner", {
@@ -216,7 +231,8 @@ function Window.new(config)
 		Parent = titleBar
 	})
 	
-	Utility.Create("TextLabel", {
+	-- Заголовок
+	self.TitleLabel = Utility.Create("TextLabel", {
 		Size = UDim2.new(1, -120, 1, 0),
 		Position = UDim2.new(0, 15, 0, 0),
 		BackgroundTransparency = 1,
@@ -368,7 +384,7 @@ function Window.new(config)
 			Font = self.Theme.Font,
 			TextSize = 24,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Parent = self.Gui
+			Parent = self.WindowContainer
 		})
 		
 		Utility.Create("UICorner", {
@@ -376,7 +392,6 @@ function Window.new(config)
 			Parent = mobileBtn
 		})
 		
-		-- Обводка
 		Utility.Create("UIStroke", {
 			Thickness = 2,
 			Color = self.Theme.Accent,
@@ -394,9 +409,6 @@ function Window.new(config)
 			end
 		end)
 	end
-	
-	-- Анимация открытия
-	self.MainFrame.Size = UDim2.new(0, 0, 0, 0)
 	
 	return self
 end
@@ -438,14 +450,12 @@ function Window:CreateTab(name, icon)
 	end)
 	
 	tabBtn.MouseButton1Click:Connect(function()
-		-- Скрываем все вкладки
 		for _, t in pairs(self.Tabs) do
 			t.Content.Visible = false
 			t.Button.BackgroundColor3 = self.Theme.SurfaceLight
 			t.Button.TextColor3 = self.Theme.TextSecondary
 		end
 		
-		-- Показываем текущую
 		tabContent.Visible = true
 		tabBtn.BackgroundColor3 = self.Theme.Accent
 		tabBtn.TextColor3 = self.Theme.Text
@@ -512,7 +522,6 @@ function Window:CreateTab(name, icon)
 			Parent = toggle
 		})
 		
-		-- Switch button
 		local switch = Utility.Create("TextButton", {
 			Size = UDim2.new(0, 48, 0, 24),
 			Position = UDim2.new(1, -58, 0.5, -12),
@@ -556,7 +565,6 @@ function Window:CreateTab(name, icon)
 			end
 		end)
 		
-		-- Setter для внешнего управления
 		toggle.SetState = function(_, state)
 			enabled = state
 			updateVisual(state)
@@ -772,7 +780,6 @@ function Window:CreateTab(name, icon)
 		local optionFrames = {}
 		
 		local function createOptions()
-			-- Очищаем старые опции
 			for _, frame in ipairs(optionFrames) do
 				frame:Destroy()
 			end
@@ -863,12 +870,12 @@ function Window:CreateTab(name, icon)
 		})
 		
 		local presets = {
-			Color3.fromRGB(255, 59, 122),  -- Pink
-			Color3.fromRGB(0, 240, 255),   -- Cyan
-			Color3.fromRGB(170, 0, 255),   -- Purple
-			Color3.fromRGB(255, 170, 0),   -- Orange
-			Color3.fromRGB(0, 255, 128),   -- Green
-			Color3.fromRGB(255, 255, 255), -- White
+			Color3.fromRGB(255, 59, 122),
+			Color3.fromRGB(0, 240, 255),
+			Color3.fromRGB(170, 0, 255),
+			Color3.fromRGB(255, 170, 0),
+			Color3.fromRGB(0, 255, 128),
+			Color3.fromRGB(255, 255, 255),
 		}
 		
 		local presetFrame = Utility.Create("Frame", {
@@ -895,7 +902,7 @@ function Window:CreateTab(name, icon)
 				Parent = presetFrame
 			})
 			
-				Utility.Create("UICorner", {
+			Utility.Create("UICorner", {
 				CornerRadius = UDim.new(1, 0),
 				Parent = colorBtn
 			})
@@ -988,7 +995,6 @@ function Window:CreateTab(name, icon)
 	
 	self.Tabs[#self.Tabs + 1] = Tab
 	
-	-- Автоматически активируем первую вкладку
 	if #self.Tabs == 1 then
 		tabContent.Visible = true
 		tabBtn.BackgroundColor3 = self.Theme.Accent
@@ -1011,7 +1017,6 @@ function NekoUI:SetTheme(themeName)
 	if Library.Themes[themeName] then
 		for _, window in ipairs(Library.Windows) do
 			window.Theme = Library.Themes[themeName]
-			-- Обновление цветов окна
 			window.MainFrame.BackgroundColor3 = window.Theme.Background
 		end
 	end
