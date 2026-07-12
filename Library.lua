@@ -1,15 +1,3 @@
---[[
-	🌸 NekoUI Library v3.0 FINAL
-	"Dark Minimal" - UI Library for Roblox Executors
-	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
-	
-	ИСПРАВЛЕНИЯ v3.0:
-	- Dropdown: ScrollingFrame с UIListLayout
-	- Dropdown: автоматический размер (AutomaticCanvasSize)
-	- Dropdown: не выходит за границы экрана
-	- Все элементы адаптивные
---]]
-
 local NekoUI = {}
 local Library = { Windows = {}, Themes = {} }
 
