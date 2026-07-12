@@ -1,3 +1,17 @@
+--[[
+	🌸 NekoUI Library v2.6 FINAL
+	"Dark Minimal" - UI Library for Roblox Executors
+	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
+	
+	ВСЕ МЕТОДЫ ВОЗВРАЩАЮТ ОБЪЕКТЫ-КОНТРОЛЛЕРЫ (ТАБЛИЦЫ):
+	- ToggleController: SetState / GetState
+	- SliderController: SetValue / GetValue
+	- DropdownController: GetValue / SetOptions
+	- ColorPickerController: GetColor
+	- TextBoxController: GetText / SetText
+	- Button: обычная кнопка
+--]]
+
 local NekoUI = {}
 local Library = { Windows = {}, Themes = {} }
 
@@ -236,11 +250,15 @@ function Window:CreateTab(name, icon)
 		return sec
 	end
 	
-	-- ==================== TOGGLE ====================
+	-- ==================== TOGGLE (КОНТРОЛЛЕР) ====================
 	function tab:CreateToggle(cfg)
 		cfg = cfg or {}
 		local on = cfg.Default or false
 		
+		-- КОНТРОЛЛЕР
+		local ToggleController = {}
+		
+		-- Визуал
 		local box = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = T.Sf, Parent = content
 		})
@@ -266,86 +284,74 @@ function Window:CreateTab(name, icon)
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 		
-		local function update(s)
+		local function updateVisual(s)
 			TweenObj(sw, 0.2, { BackgroundColor3 = s and T.Tx or T.Sf2 })
 			TweenObj(knob, 0.2, { Position = UDim2.new(s and 1 or 0, s and -17 or 3, 0.5, -7) })
 		end
 		
 		sw.MouseButton1Click:Connect(function()
-			on = not on; update(on)
+			on = not on
+			updateVisual(on)
 			if cfg.Callback then pcall(cfg.Callback, on) end
 		end)
 		
-		box.SetState = function(_, s) on = s; update(s) end
-		box.GetState = function() return on end
+		-- Методы контроллера
+		function ToggleController:SetState(state)
+			on = state
+			updateVisual(state)
+		end
 		
-		return box
+		function ToggleController:GetState()
+			return on
+		end
+		
+		ToggleController._box = box
+		
+		return ToggleController
 	end
 	
-	-- ==================== SLIDER (ПОЛНОСТЬЮ НОВЫЙ) ====================
+	-- ==================== SLIDER (КОНТРОЛЛЕР) ====================
 	function tab:CreateSlider(cfg)
 		cfg = cfg or {}
 		local min = cfg.Min or 0
 		local max = cfg.Max or 100
 		local val = cfg.Default or min
 		
-		-- Создаём объект-контроллер (таблицу)
+		-- КОНТРОЛЛЕР
 		local SliderController = {}
 		
-		-- Визуальный контейнер
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 56),
-			BackgroundColor3 = T.Sf,
-			Parent = content
+			Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = T.Sf, Parent = content
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = box })
 		
-		-- Текст
 		local label = Create("TextLabel", {
-			Size = UDim2.new(1, -20, 0, 18),
-			Position = UDim2.new(0, 10, 0, 4),
-			BackgroundTransparency = 1,
-			Text = string.format("%s: %.0f", cfg.Name or "Slider", val),
-			TextColor3 = T.Tx,
-			Font = Enum.Font.GothamSemibold,
-			TextSize = 12,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = box
+			Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 10, 0, 4),
+			BackgroundTransparency = 1, TextColor3 = T.Tx,
+			Font = Enum.Font.GothamSemibold, TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Left, Parent = box
 		})
 		
-		-- Полоса
 		local bar = Create("TextButton", {
-			Size = UDim2.new(1, -20, 0, 5),
-			Position = UDim2.new(0, 10, 0, 28),
-			BackgroundColor3 = T.Sf2,
-			Text = "",
-			BorderSizePixel = 0,
-			AutoButtonColor = false,
-			Parent = box
+			Size = UDim2.new(1, -20, 0, 5), Position = UDim2.new(0, 10, 0, 28),
+			BackgroundColor3 = T.Sf2, Text = "", BorderSizePixel = 0,
+			AutoButtonColor = false, Parent = box
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 		
-		-- Заполнение
 		local fill = Create("Frame", {
-			Size = UDim2.new((val - min) / (max - min), 0, 1, 0),
-			BackgroundColor3 = T.Tx,
-			BorderSizePixel = 0,
-			Parent = bar
+			Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = T.Tx,
+			BorderSizePixel = 0, Parent = bar
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 		
-		-- Кружок
 		local knob = Create("Frame", {
-			Size = UDim2.new(0, 12, 0, 12),
-			Position = UDim2.new((val - min) / (max - min), -6, 0.5, -6),
-			BackgroundColor3 = T.Tx,
-			BorderSizePixel = 0,
-			Parent = bar
+			Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, -6, 0.5, -6),
+			BackgroundColor3 = T.Tx, Parent = bar
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 		
-		-- Функция обновления
-		local function UpdateValue(newVal)
+		local function UpdateVisual(newVal)
 			val = math.clamp(newVal, min, max)
 			local percent = (val - min) / (max - min)
 			fill.Size = UDim2.new(percent, 0, 1, 0)
@@ -353,7 +359,9 @@ function Window:CreateTab(name, icon)
 			label.Text = string.format("%s: %.0f", cfg.Name or "Slider", val)
 		end
 		
-		-- Обработка перетаскивания
+		-- Инициализация
+		UpdateVisual(val)
+		
 		local dragging = false
 		
 		local function UpdateFromMouse()
@@ -362,10 +370,8 @@ function Window:CreateTab(name, icon)
 			local barW = bar.AbsoluteSize.X
 			local percent = math.clamp((mouseX - barX) / barW, 0, 1)
 			local newVal = min + (max - min) * percent
-			UpdateValue(newVal)
-			if cfg.Callback then
-				pcall(cfg.Callback, val)
-			end
+			UpdateVisual(newVal)
+			if cfg.Callback then pcall(cfg.Callback, val) end
 		end
 		
 		bar.MouseButton1Down:Connect(function()
@@ -380,24 +386,19 @@ function Window:CreateTab(name, icon)
 		end)
 		
 		UIS.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = false
-			end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 		end)
 		
-		-- Методы контроллера (работают гарантированно)
+		-- Методы контроллера
 		function SliderController:SetValue(v)
-			UpdateValue(v)
-			if cfg.Callback then
-				pcall(cfg.Callback, val)
-			end
+			UpdateVisual(v)
+			if cfg.Callback then pcall(cfg.Callback, val) end
 		end
 		
 		function SliderController:GetValue()
 			return val
 		end
 		
-		-- Сохраняем ссылку на бокс для совместимости
 		SliderController._box = box
 		
 		return SliderController
@@ -421,12 +422,15 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
-	-- ==================== DROPDOWN ====================
+	-- ==================== DROPDOWN (КОНТРОЛЛЕР) ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
 		local sel = cfg.Default or opts[1] or ""
 		local open = false
+		
+		-- КОНТРОЛЛЕР
+		local DropdownController = {}
 		
 		local box = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = T.Sf, Parent = content
@@ -461,8 +465,10 @@ function Window:CreateTab(name, icon)
 				})
 				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ob })
 				ob.MouseButton1Click:Connect(function()
-					sel = o; btn3.Text = cfg.Name .. ": " .. sel
-					open = false; list.Visible = false
+					sel = o
+					btn3.Text = cfg.Name .. ": " .. sel
+					open = false
+					list.Visible = false
 					box.Size = UDim2.new(1, 0, 0, 32)
 					if cfg.Callback then pcall(cfg.Callback, sel) end
 				end)
@@ -475,19 +481,33 @@ function Window:CreateTab(name, icon)
 		build()
 		
 		btn3.MouseButton1Click:Connect(function()
-			open = not open; list.Visible = open
+			open = not open
+			list.Visible = open
 			box.Size = UDim2.new(1, 0, 0, open and 32 + list.AbsoluteSize.Y + 3 or 32)
 		end)
 		
-		box.GetValue = function() return sel end
-		box.SetOptions = function(_, o) opts = o; build() end
-		return box
+		-- Методы контроллера
+		function DropdownController:GetValue()
+			return sel
+		end
+		
+		function DropdownController:SetOptions(newOpts)
+			opts = newOpts
+			build()
+		end
+		
+		DropdownController._box = box
+		
+		return DropdownController
 	end
 	
-	-- ==================== COLOR PICKER ====================
+	-- ==================== COLOR PICKER (КОНТРОЛЛЕР) ====================
 	function tab:CreateColorPicker(cfg)
 		cfg = cfg or {}
 		local col = cfg.Default or Color3.new(1, 1, 1)
+		
+		-- КОНТРОЛЛЕР
+		local ColorPickerController = {}
 		
 		local box = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = T.Sf, Parent = content
@@ -532,18 +552,29 @@ function Window:CreateTab(name, icon)
 					if s then s:Destroy() end
 				end
 				Create("UIStroke", { Thickness = 2, Color = T.Tx, Parent = cb })
-				selFrame = cb; col = p
+				selFrame = cb
+				col = p
 				if cfg.Callback then pcall(cfg.Callback, col) end
 			end)
 		end
 		
-		box.GetColor = function() return col end
-		return box
+		-- Методы контроллера
+		function ColorPickerController:GetColor()
+			return col
+		end
+		
+		ColorPickerController._box = box
+		
+		return ColorPickerController
 	end
 	
-	-- ==================== TEXTBOX ====================
+	-- ==================== TEXTBOX (КОНТРОЛЛЕР) ====================
 	function tab:CreateTextBox(cfg)
 		cfg = cfg or {}
+		
+		-- КОНТРОЛЛЕР
+		local TextBoxController = {}
+		
 		local box = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = T.Sf, Parent = content
 		})
@@ -558,13 +589,23 @@ function Window:CreateTab(name, icon)
 			ClearTextOnFocus = false, Parent = box
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = inp })
+		
 		inp.FocusLost:Connect(function(enter)
 			if cfg.Callback then pcall(cfg.Callback, inp.Text, enter) end
 		end)
 		
-		box.GetText = function() return inp.Text end
-		box.SetText = function(_, t) inp.Text = t end
-		return box
+		-- Методы контроллера
+		function TextBoxController:GetText()
+			return inp.Text
+		end
+		
+		function TextBoxController:SetText(text)
+			inp.Text = text
+		end
+		
+		TextBoxController._box = box
+		
+		return TextBoxController
 	end
 	
 	table.insert(self.Tabs, tab)
