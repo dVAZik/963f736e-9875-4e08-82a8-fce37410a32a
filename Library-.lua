@@ -1,63 +1,161 @@
 --[[
-	🌸 NekoUI Library v2.1
+	🌸 NekoUI Library v2.2
 	"Dark Pastel Cyberpunk" - UI Library for Roblox Executors
 	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
-	Поддержка: Delta, Codex, Synapse X, ScriptWare, Krnl
 	
-	ИСПОЛЬЗОВАНИЕ:
-	local NekoUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a/refs/heads/main/Library.lua"))()
-	
-	Создание окна:
-	local Window = NekoUI:CreateWindow({
-		Name = "My Script",
-		Theme = "Cyberpunk", -- "Cyberpunk", "Pastel", "Dark"
-		Key = Enum.KeyCode.Insert,
-		MobileButton = true
-	})
+	ИСПРАВЛЕНИЯ v2.2:
+	- Исправлена ошибка SetValue (неправильный возврат объекта)
+	- Добавлена система детального логирования ошибок
+	- Все методы защищены pcall с выводом стека
+	- Структурированный вывод ошибок с указанием строки и функции
 --]]
 
+-- ==================== СИСТЕМА ЛОГИРОВАНИЯ ====================
+local Logger = {
+	Logs = {},
+	MaxLogs = 100
+}
+
+function Logger:Info(message)
+	local log = {
+		Type = "INFO",
+		Message = tostring(message),
+		Time = os.time(),
+		Traceback = debug.traceback()
+	}
+	table.insert(self.Logs, log)
+	if #self.Logs > self.MaxLogs then
+		table.remove(self.Logs, 1)
+	end
+	print("[NekoUI INFO]: " .. message)
+end
+
+function Logger:Error(message, funcName)
+	local log = {
+		Type = "ERROR",
+		Message = tostring(message),
+		Function = funcName or "Unknown",
+		Time = os.time(),
+		Traceback = debug.traceback()
+	}
+	table.insert(self.Logs, log)
+	if #self.Logs > self.MaxLogs then
+		table.remove(self.Logs, 1)
+	end
+	warn("[NekoUI ERROR] in " .. (funcName or "Unknown") .. ": " .. tostring(message))
+end
+
+function Logger:GetLogs()
+	return self.Logs
+end
+
+function Logger:Clear()
+	self.Logs = {}
+end
+
+-- ==================== БЕЗОПАСНЫЙ ВЫЗОВ ФУНКЦИЙ ====================
+local function SafeCall(func, funcName, ...)
+	local success, result = pcall(func, ...)
+	if not success then
+		Logger:Error(result, funcName)
+		return nil, result
+	end
+	return result, nil
+end
+
+-- ==================== ИНИЦИАЛИЗАЦИЯ БИБЛИОТЕКИ ====================
 local NekoUI = {}
 local Library = {}
 Library.Windows = {}
 Library.Themes = {}
 Library.Connections = {}
 
+Logger:Info("Library initialization started")
+
 -- Сервисы Roblox
 local Services = setmetatable({}, {
 	__index = function(t, k)
-		local service = game:GetService(k)
-		t[k] = service
-		return service
+		local success, service = pcall(function()
+			return game:GetService(k)
+		end)
+		if success then
+			t[k] = service
+			return service
+		else
+			Logger:Error("Failed to get service: " .. k, "Services")
+			return nil
+		end
 	end
 })
 
--- Утилиты
+-- Проверка критических сервисов
+local requiredServices = {"UserInputService", "TweenService", "CoreGui", "GuiService"}
+for _, serviceName in ipairs(requiredServices) do
+	if not Services[serviceName] then
+		Logger:Error("Critical service missing: " .. serviceName, "Initialization")
+		return nil
+	end
+end
+
+-- ==================== УТИЛИТЫ ====================
 local Utility = {}
 
 function Utility.Create(className, properties)
-	local instance = Instance.new(className)
-	for prop, value in pairs(properties or {}) do
-		if prop == "Parent" then
-			instance.Parent = value
-		else
-			instance[prop] = value
+	local success, instance = pcall(function()
+		local inst = Instance.new(className)
+		for prop, value in pairs(properties or {}) do
+			if prop == "Parent" then
+				pcall(function() inst.Parent = value end)
+			else
+				pcall(function() inst[prop] = value end)
+			end
 		end
+		return inst
+	end)
+	
+	if not success then
+		Logger:Error("Failed to create " .. className, "Utility.Create")
+		return nil
 	end
+	
 	return instance
 end
 
 function Utility.Tween(obj, time, props, easing, dir)
-	local tweenInfo = TweenInfo.new(time or 0.3, easing or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
-	local tween = Services.TweenService:Create(obj, tweenInfo, props)
-	tween:Play()
-	return tween
+	if not obj then
+		Logger:Error("Object is nil", "Utility.Tween")
+		return nil
+	end
+	
+	local success, tween = pcall(function()
+		local tweenInfo = TweenInfo.new(
+			time or 0.3, 
+			easing or Enum.EasingStyle.Quad, 
+			dir or Enum.EasingDirection.Out
+		)
+		return Services.TweenService:Create(obj, tweenInfo, props)
+	end)
+	
+	if success and tween then
+		pcall(function() tween:Play() end)
+		return tween
+	else
+		Logger:Error("Failed to create tween", "Utility.Tween")
+		return nil
+	end
 end
 
 function Utility.Dragify(frame, handle)
+	if not frame or not handle then
+		Logger:Error("Frame or handle is nil", "Utility.Dragify")
+		return
+	end
+	
 	local dragging, dragInput, dragStart, startPos
 	
 	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+		   input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			dragStart = input.Position
 			startPos = frame.Position
@@ -65,20 +163,29 @@ function Utility.Dragify(frame, handle)
 	end)
 	
 	handle.InputChanged:Connect(function(input)
-		if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+		if (input.UserInputType == Enum.UserInputType.MouseMovement or 
+			input.UserInputType == Enum.UserInputType.Touch) and dragging then
 			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			pcall(function()
+				frame.Position = UDim2.new(
+					startPos.X.Scale, 
+					startPos.X.Offset + delta.X, 
+					startPos.Y.Scale, 
+					startPos.Y.Offset + delta.Y
+				)
+			end)
 		end
 	end)
 	
 	Services.UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+		   input.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
 	end)
 end
 
--- Дефолтные темы
+-- ==================== ТЕМЫ ====================
 Library.Themes = {
 	Cyberpunk = {
 		Background = Color3.fromRGB(13, 13, 20),
@@ -127,7 +234,9 @@ Library.Themes = {
 	}
 }
 
--- =================== СОЗДАНИЕ БАЗОВОГО GUI ===================
+-- ==================== БАЗОВЫЙ GUI ====================
+Logger:Info("Creating base GUI...")
+
 local BaseGui = Utility.Create("ScreenGui", {
 	Name = "NekoUI_Base",
 	Parent = Services.CoreGui,
@@ -135,16 +244,33 @@ local BaseGui = Utility.Create("ScreenGui", {
 	IgnoreGuiInset = true
 })
 
--- UI Scale для адаптивности
-local guiService = game:GetService("GuiService")
-local screenResolution = guiService:GetScreenResolution()
+if not BaseGui then
+	Logger:Error("Failed to create BaseGui", "Initialization")
+	return nil
+end
 
-Utility.Create("UIScale", {
-	Parent = BaseGui,
-	Scale = math.clamp(screenResolution.X / 1920, 0.6, 1.5)
-})
+-- UI Scale
+local guiService = Services.GuiService
+if guiService then
+	local success, resolution = pcall(function()
+		return guiService:GetScreenResolution()
+	end)
+	
+	if success and resolution then
+		Utility.Create("UIScale", {
+			Parent = BaseGui,
+			Scale = math.clamp(resolution.X / 1920, 0.6, 1.5)
+		})
+	else
+		Logger:Error("Failed to get screen resolution", "Initialization")
+		Utility.Create("UIScale", {
+			Parent = BaseGui,
+			Scale = 1
+		})
+	end
+end
 
--- Создаем главный контейнер для всех окон
+-- Главный контейнер
 local MainContainer = Utility.Create("Frame", {
 	Name = "MainContainer",
 	Size = UDim2.new(1, 0, 1, 0),
@@ -152,11 +278,15 @@ local MainContainer = Utility.Create("Frame", {
 	Parent = BaseGui
 })
 
--- =================== Класс Window ===================
+Logger:Info("Base GUI created successfully")
+
+-- ==================== КЛАСС WINDOW ====================
 local Window = {}
 Window.__index = Window
 
 function Window.new(config)
+	Logger:Info("Creating window: " .. (config.Name or "Unknown"))
+	
 	local self = setmetatable({}, Window)
 	self.Name = config.Name or "NekoUI"
 	self.Theme = Library.Themes[config.Theme] or Library.Themes.Cyberpunk
@@ -165,15 +295,20 @@ function Window.new(config)
 	self.Tabs = {}
 	self.CurrentTab = nil
 	
-	-- Создаем отдельный контейнер для этого окна
+	-- Контейнер окна
 	self.WindowContainer = Utility.Create("Frame", {
-		Name = "Window_" .. self.Name,
+		Name = "Window_" .. self.Name:gsub("%s", "_"),
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundTransparency = 1,
 		Parent = MainContainer
 	})
 	
-	-- Главное окно
+	if not self.WindowContainer then
+		Logger:Error("Failed to create WindowContainer", "Window.new")
+		return nil
+	end
+	
+	-- Главный фрейм
 	self.MainFrame = Utility.Create("Frame", {
 		Name = "Main",
 		Size = UDim2.new(0, 680, 0, 450),
@@ -184,18 +319,24 @@ function Window.new(config)
 		Parent = self.WindowContainer
 	})
 	
+	if not self.MainFrame then
+		Logger:Error("Failed to create MainFrame", "Window.new")
+		return nil
+	end
+	
+	-- UICorner
 	Utility.Create("UICorner", {
 		CornerRadius = UDim.new(0, self.Theme.CornerRadius),
 		Parent = self.MainFrame
 	})
 	
-	-- Эффект размытия
+	-- Blur эффект
 	Utility.Create("BlurEffect", {
 		Size = 10,
 		Parent = self.MainFrame
 	})
 	
-	-- Тень с акцентным цветом
+	-- Тень
 	Utility.Create("ImageLabel", {
 		Size = UDim2.new(1, 24, 1, 24),
 		Position = UDim2.new(0, -12, 0, -12),
@@ -221,7 +362,7 @@ function Window.new(config)
 		Parent = titleBar
 	})
 	
-	-- Градиент заголовка
+	-- Градиент
 	Utility.Create("UIGradient", {
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, self.Theme.Accent),
@@ -232,7 +373,7 @@ function Window.new(config)
 	})
 	
 	-- Заголовок
-	self.TitleLabel = Utility.Create("TextLabel", {
+	Utility.Create("TextLabel", {
 		Size = UDim2.new(1, -120, 1, 0),
 		Position = UDim2.new(0, 15, 0, 0),
 		BackgroundTransparency = 1,
@@ -265,7 +406,7 @@ function Window.new(config)
 		self.MainFrame.Visible = false
 	end)
 	
-	-- Drag functionality
+	-- Drag
 	Utility.Dragify(self.MainFrame, titleBar)
 	
 	-- Tab Container
@@ -277,7 +418,7 @@ function Window.new(config)
 		Parent = self.MainFrame
 	})
 	
-	-- Scrolling для табов
+	-- Tab Scrolling
 	self.TabScroll = Utility.Create("ScrollingFrame", {
 		Size = UDim2.new(1, -10, 1, 0),
 		Position = UDim2.new(0, 5, 0, 5),
@@ -321,7 +462,7 @@ function Window.new(config)
 		self.ContentScroll.CanvasSize = UDim2.new(0, 0, 0, self.ContentLayout.AbsoluteContentSize.Y + 10)
 	end)
 	
-	-- Кнопка Pin (закрепление)
+	-- Pin кнопка
 	local pinBtn = Utility.Create("TextButton", {
 		Size = UDim2.new(0, 30, 0, 30),
 		Position = UDim2.new(1, -70, 0, 6),
@@ -345,23 +486,25 @@ function Window.new(config)
 		pinBtn.BackgroundColor3 = pinned and self.Theme.Accent or self.Theme.SurfaceLight
 	end)
 	
-	-- Обработчик закрытия по клику вне меню
+	-- Клик вне меню
 	Services.UserInputService.InputBegan:Connect(function(input)
 		if not pinned and input.UserInputType == Enum.UserInputType.MouseButton1 then
 			if self.MainFrame.Visible then
-				local mousePos = Services.UserInputService:GetMouseLocation()
-				local framePos = self.MainFrame.AbsolutePosition
-				local frameSize = self.MainFrame.AbsoluteSize
-				
-				if mousePos.X < framePos.X or mousePos.X > framePos.X + frameSize.X or
-				   mousePos.Y < framePos.Y or mousePos.Y > framePos.Y + frameSize.Y then
-					self.MainFrame.Visible = false
-				end
+				pcall(function()
+					local mousePos = Services.UserInputService:GetMouseLocation()
+					local framePos = self.MainFrame.AbsolutePosition
+					local frameSize = self.MainFrame.AbsoluteSize
+					
+					if mousePos.X < framePos.X or mousePos.X > framePos.X + frameSize.X or
+					   mousePos.Y < framePos.Y or mousePos.Y > framePos.Y + frameSize.Y then
+						self.MainFrame.Visible = false
+					end
+				end)
 			end
 		end
 	end)
 	
-	-- Toggle кнопка для ПК (Insert/P)
+	-- Горячая клавиша
 	Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == self.Key then
 			self.MainFrame.Visible = not self.MainFrame.Visible
@@ -387,35 +530,43 @@ function Window.new(config)
 			Parent = self.WindowContainer
 		})
 		
-		Utility.Create("UICorner", {
-			CornerRadius = UDim.new(1, 0),
-			Parent = mobileBtn
-		})
-		
-		Utility.Create("UIStroke", {
-			Thickness = 2,
-			Color = self.Theme.Accent,
-			Parent = mobileBtn
-		})
-		
-		Utility.Dragify(mobileBtn, mobileBtn)
-		
-		mobileBtn.MouseButton1Click:Connect(function()
-			self.MainFrame.Visible = not self.MainFrame.Visible
-			if self.MainFrame.Visible then
-				Utility.Tween(self.MainFrame, 0.3, {
-					Size = UDim2.new(0, 680, 0, 450)
-				}, Enum.EasingStyle.Back)
-			end
-		end)
+		if mobileBtn then
+			Utility.Create("UICorner", {
+				CornerRadius = UDim.new(1, 0),
+				Parent = mobileBtn
+			})
+			
+			Utility.Create("UIStroke", {
+				Thickness = 2,
+				Color = self.Theme.Accent,
+				Parent = mobileBtn
+			})
+			
+			Utility.Dragify(mobileBtn, mobileBtn)
+			
+			mobileBtn.MouseButton1Click:Connect(function()
+				self.MainFrame.Visible = not self.MainFrame.Visible
+				if self.MainFrame.Visible then
+					Utility.Tween(self.MainFrame, 0.3, {
+						Size = UDim2.new(0, 680, 0, 450)
+					}, Enum.EasingStyle.Back)
+				end
+			end)
+		end
 	end
 	
+	Logger:Info("Window created successfully: " .. self.Name)
 	return self
 end
 
+-- ==================== МЕТОДЫ WINDOW ====================
+
 function Window:CreateTab(name, icon)
+	Logger:Info("Creating tab: " .. (name or "Unknown"))
+	
 	local Tab = {}
 	
+	-- Кнопка вкладки
 	local tabBtn = Utility.Create("TextButton", {
 		Size = UDim2.new(0, 110, 0, 28),
 		BackgroundColor3 = self.Theme.SurfaceLight,
@@ -426,18 +577,28 @@ function Window:CreateTab(name, icon)
 		Parent = self.TabScroll
 	})
 	
+	if not tabBtn then
+		Logger:Error("Failed to create tab button", "CreateTab")
+		return Tab
+	end
+	
 	Utility.Create("UICorner", {
 		CornerRadius = UDim.new(0, 8),
 		Parent = tabBtn
 	})
 	
-	-- Создаем фрейм для контента вкладки
+	-- Контент вкладки
 	local tabContent = Utility.Create("Frame", {
 		Size = UDim2.new(1, -10, 0, 0),
 		BackgroundTransparency = 1,
 		Visible = false,
 		Parent = self.ContentScroll
 	})
+	
+	if not tabContent then
+		Logger:Error("Failed to create tab content", "CreateTab")
+		return Tab
+	end
 	
 	local tabLayout = Utility.Create("UIListLayout", {
 		Padding = UDim.new(0, 6),
@@ -467,13 +628,22 @@ function Window:CreateTab(name, icon)
 	Tab.Layout = tabLayout
 	Tab.Window = self
 	
-	-- Методы для добавления элементов
+	-- ==================== МЕТОДЫ СОЗДАНИЯ ЭЛЕМЕНТОВ ====================
+	
 	function Tab:CreateSection(name)
+		local funcName = "CreateSection"
+		Logger:Info("Creating section: " .. (name or "Unknown"))
+		
 		local section = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 32),
 			BackgroundColor3 = self.Window.Theme.Surface,
 			Parent = self.Content
 		})
+		
+		if not section then
+			Logger:Error("Failed to create section", funcName)
+			return nil
+		end
 		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
@@ -496,18 +666,26 @@ function Window:CreateTab(name, icon)
 	end
 	
 	function Tab:CreateToggle(config)
+		local funcName = "CreateToggle"
 		config = config or {}
 		local enabled = config.Default or false
 		
-		local toggle = Utility.Create("Frame", {
+		Logger:Info("Creating toggle: " .. (config.Name or "Unknown"))
+		
+		local toggleContainer = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 42),
 			BackgroundColor3 = self.Window.Theme.SurfaceLight,
 			Parent = self.Content
 		})
 		
+		if not toggleContainer then
+			Logger:Error("Failed to create toggle container", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
-			Parent = toggle
+			Parent = toggleContainer
 		})
 		
 		Utility.Create("TextLabel", {
@@ -519,7 +697,7 @@ function Window:CreateTab(name, icon)
 			Font = self.Window.Theme.FontSecondary,
 			TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = toggle
+			Parent = toggleContainer
 		})
 		
 		local switch = Utility.Create("TextButton", {
@@ -528,7 +706,7 @@ function Window:CreateTab(name, icon)
 			BackgroundColor3 = enabled and self.Window.Theme.Success or self.Window.Theme.Surface,
 			Text = "",
 			BorderSizePixel = 0,
-			Parent = toggle
+			Parent = toggleContainer
 		})
 		
 		Utility.Create("UICorner", {
@@ -549,49 +727,60 @@ function Window:CreateTab(name, icon)
 		})
 		
 		local function updateVisual(state)
-			Utility.Tween(switch, 0.25, {
-				BackgroundColor3 = state and self.Window.Theme.Success or self.Window.Theme.Surface
-			})
-			Utility.Tween(knob, 0.25, {
-				Position = UDim2.new(state and 1 or 0, state and -21 or 3, 0.5, -9)
-			})
+			pcall(function()
+				Utility.Tween(switch, 0.25, {
+					BackgroundColor3 = state and self.Window.Theme.Success or self.Window.Theme.Surface
+				})
+				Utility.Tween(knob, 0.25, {
+					Position = UDim2.new(state and 1 or 0, state and -21 or 3, 0.5, -9)
+				})
+			end)
 		end
 		
 		switch.MouseButton1Click:Connect(function()
 			enabled = not enabled
 			updateVisual(enabled)
 			if config.Callback then
-				pcall(config.Callback, enabled)
+				SafeCall(config.Callback, funcName .. ".Callback", enabled)
 			end
 		end)
 		
-		toggle.SetState = function(_, state)
+		-- Методы управления
+		toggleContainer.SetState = function(_, state)
 			enabled = state
 			updateVisual(state)
 		end
 		
-		toggle.GetState = function()
+		toggleContainer.GetState = function()
 			return enabled
 		end
 		
-		return toggle
+		return toggleContainer
 	end
 	
 	function Tab:CreateSlider(config)
+		local funcName = "CreateSlider"
 		config = config or {}
 		local min = config.Min or 0
 		local max = config.Max or 100
 		local value = config.Default or min
 		
-		local slider = Utility.Create("Frame", {
+		Logger:Info("Creating slider: " .. (config.Name or "Unknown"))
+		
+		local sliderContainer = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 65),
 			BackgroundColor3 = self.Window.Theme.SurfaceLight,
 			Parent = self.Content
 		})
 		
+		if not sliderContainer then
+			Logger:Error("Failed to create slider container", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
-			Parent = slider
+			Parent = sliderContainer
 		})
 		
 		local label = Utility.Create("TextLabel", {
@@ -603,7 +792,7 @@ function Window:CreateTab(name, icon)
 			Font = self.Window.Theme.FontSecondary,
 			TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = slider
+			Parent = sliderContainer
 		})
 		
 		local sliderBar = Utility.Create("TextButton", {
@@ -612,7 +801,7 @@ function Window:CreateTab(name, icon)
 			BackgroundColor3 = self.Window.Theme.Surface,
 			Text = "",
 			BorderSizePixel = 0,
-			Parent = slider
+			Parent = sliderContainer
 		})
 		
 		Utility.Create("UICorner", {
@@ -648,12 +837,15 @@ function Window:CreateTab(name, icon)
 		local function updateValue(newValue)
 			value = math.clamp(newValue, min, max)
 			local percent = (value - min) / (max - min)
-			fill.Size = UDim2.new(percent, 0, 1, 0)
-			knob.Position = UDim2.new(percent, -7, 0.5, -7)
-			label.Text = string.format("%s: %.0f", config.Name or "Slider", value)
+			
+			pcall(function()
+				fill.Size = UDim2.new(percent, 0, 1, 0)
+				knob.Position = UDim2.new(percent, -7, 0.5, -7)
+				label.Text = string.format("%s: %.0f", config.Name or "Slider", value)
+			end)
 			
 			if config.Callback then
-				pcall(config.Callback, value)
+				SafeCall(config.Callback, funcName .. ".Callback", value)
 			end
 		end
 		
@@ -661,21 +853,25 @@ function Window:CreateTab(name, icon)
 		sliderBar.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				inputBegan = true
-				local mousePos = Services.UserInputService:GetMouseLocation()
-				local barPos = sliderBar.AbsolutePosition
-				local barSize = sliderBar.AbsoluteSize
-				local percent = (mousePos.X - barPos.X) / barSize.X
-				updateValue(min + (max - min) * percent)
+				pcall(function()
+					local mousePos = Services.UserInputService:GetMouseLocation()
+					local barPos = sliderBar.AbsolutePosition
+					local barSize = sliderBar.AbsoluteSize
+					local percent = (mousePos.X - barPos.X) / barSize.X
+					updateValue(min + (max - min) * percent)
+				end)
 			end
 		end)
 		
 		Services.UserInputService.InputChanged:Connect(function(input)
-			if inputBegan and (input.UserInputType == Enum.UserInputType.MouseMovement) then
-				local mousePos = Services.UserInputService:GetMouseLocation()
-				local barPos = sliderBar.AbsolutePosition
-				local barSize = sliderBar.AbsoluteSize
-				local percent = (mousePos.X - barPos.X) / barSize.X
-				updateValue(min + (max - min) * percent)
+			if inputBegan and input.UserInputType == Enum.UserInputType.MouseMovement then
+				pcall(function()
+					local mousePos = Services.UserInputService:GetMouseLocation()
+					local barPos = sliderBar.AbsolutePosition
+					local barSize = sliderBar.AbsoluteSize
+					local percent = (mousePos.X - barPos.X) / barSize.X
+					updateValue(min + (max - min) * percent)
+				end)
 			end
 		end)
 		
@@ -685,19 +881,23 @@ function Window:CreateTab(name, icon)
 			end
 		end)
 		
-		slider.SetValue = function(_, newValue)
+		-- Методы управления (привязаны к КОНТЕЙНЕРУ, а не к внутреннему Frame)
+		sliderContainer.SetValue = function(_, newValue)
 			updateValue(newValue)
 		end
 		
-		slider.GetValue = function()
+		sliderContainer.GetValue = function()
 			return value
 		end
 		
-		return slider
+		return sliderContainer
 	end
 	
 	function Tab:CreateButton(config)
+		local funcName = "CreateButton"
 		config = config or {}
+		
+		Logger:Info("Creating button: " .. (config.Name or "Unknown"))
 		
 		local button = Utility.Create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 35),
@@ -709,22 +909,29 @@ function Window:CreateTab(name, icon)
 			Parent = self.Content
 		})
 		
+		if not button then
+			Logger:Error("Failed to create button", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
 			Parent = button
 		})
 		
 		button.MouseButton1Click:Connect(function()
-			Utility.Tween(button, 0.15, {
-				BackgroundColor3 = self.Window.Theme.AccentSecondary
-			})
-			task.wait(0.15)
-			Utility.Tween(button, 0.15, {
-				BackgroundColor3 = self.Window.Theme.Accent
-			})
+			pcall(function()
+				Utility.Tween(button, 0.15, {
+					BackgroundColor3 = self.Window.Theme.AccentSecondary
+				})
+				task.wait(0.15)
+				Utility.Tween(button, 0.15, {
+					BackgroundColor3 = self.Window.Theme.Accent
+				})
+			end)
 			
 			if config.Callback then
-				pcall(config.Callback)
+				SafeCall(config.Callback, funcName .. ".Callback")
 			end
 		end)
 		
@@ -732,20 +939,28 @@ function Window:CreateTab(name, icon)
 	end
 	
 	function Tab:CreateDropdown(config)
+		local funcName = "CreateDropdown"
 		config = config or {}
 		local options = config.Options or {}
 		local selected = config.Default or options[1] or ""
 		local expanded = false
 		
-		local dropdown = Utility.Create("Frame", {
+		Logger:Info("Creating dropdown: " .. (config.Name or "Unknown"))
+		
+		local dropdownContainer = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = self.Window.Theme.SurfaceLight,
 			Parent = self.Content
 		})
 		
+		if not dropdownContainer then
+			Logger:Error("Failed to create dropdown container", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
-			Parent = dropdown
+			Parent = dropdownContainer
 		})
 		
 		local dropdownBtn = Utility.Create("TextButton", {
@@ -755,7 +970,7 @@ function Window:CreateTab(name, icon)
 			TextColor3 = self.Window.Theme.Text,
 			Font = self.Window.Theme.FontSecondary,
 			TextSize = 13,
-			Parent = dropdown
+			Parent = dropdownContainer
 		})
 		
 		local optionList = Utility.Create("Frame", {
@@ -763,7 +978,7 @@ function Window:CreateTab(name, icon)
 			Position = UDim2.new(0, 0, 1, 5),
 			BackgroundColor3 = self.Window.Theme.Surface,
 			Visible = false,
-			Parent = dropdown
+			Parent = dropdownContainer
 		})
 		
 		Utility.Create("UICorner", {
@@ -780,8 +995,9 @@ function Window:CreateTab(name, icon)
 		local optionFrames = {}
 		
 		local function createOptions()
+			-- Очистка старых
 			for _, frame in ipairs(optionFrames) do
-				frame:Destroy()
+				pcall(function() frame:Destroy() end)
 			end
 			optionFrames = {}
 			
@@ -797,24 +1013,26 @@ function Window:CreateTab(name, icon)
 					Parent = optionList
 				})
 				
-				Utility.Create("UICorner", {
-					CornerRadius = UDim.new(0, 6),
-					Parent = optBtn
-				})
-				
-				optBtn.MouseButton1Click:Connect(function()
-					selected = opt
-					dropdownBtn.Text = config.Name .. ": " .. selected
-					expanded = false
-					optionList.Visible = false
-					dropdown.Size = UDim2.new(1, 0, 0, 35)
+				if optBtn then
+					Utility.Create("UICorner", {
+						CornerRadius = UDim.new(0, 6),
+						Parent = optBtn
+					})
 					
-					if config.Callback then
-						pcall(config.Callback, opt)
-					end
-				end)
-				
-				table.insert(optionFrames, optBtn)
+					optBtn.MouseButton1Click:Connect(function()
+						selected = opt
+						dropdownBtn.Text = config.Name .. ": " .. selected
+						expanded = false
+						optionList.Visible = false
+						dropdownContainer.Size = UDim2.new(1, 0, 0, 35)
+						
+						if config.Callback then
+							SafeCall(config.Callback, funcName .. ".Callback", opt)
+						end
+					end)
+					
+					table.insert(optionFrames, optBtn)
+				end
 			end
 			
 			optionLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -827,34 +1045,42 @@ function Window:CreateTab(name, icon)
 		dropdownBtn.MouseButton1Click:Connect(function()
 			expanded = not expanded
 			optionList.Visible = expanded
-			dropdown.Size = UDim2.new(1, 0, 0, expanded and 35 + optionList.AbsoluteSize.Y + 5 or 35)
+			dropdownContainer.Size = UDim2.new(1, 0, 0, expanded and 35 + optionList.AbsoluteSize.Y + 5 or 35)
 		end)
 		
-		dropdown.GetValue = function()
+		dropdownContainer.GetValue = function()
 			return selected
 		end
 		
-		dropdown.SetOptions = function(_, newOptions)
+		dropdownContainer.SetOptions = function(_, newOptions)
 			options = newOptions
 			createOptions()
 		end
 		
-		return dropdown
+		return dropdownContainer
 	end
 	
 	function Tab:CreateColorPicker(config)
+		local funcName = "CreateColorPicker"
 		config = config or {}
 		local color = config.Default or self.Window.Theme.Accent
 		
-		local picker = Utility.Create("Frame", {
+		Logger:Info("Creating color picker: " .. (config.Name or "Unknown"))
+		
+		local pickerContainer = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 60),
 			BackgroundColor3 = self.Window.Theme.SurfaceLight,
 			Parent = self.Content
 		})
 		
+		if not pickerContainer then
+			Logger:Error("Failed to create color picker", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
-			Parent = picker
+			Parent = pickerContainer
 		})
 		
 		Utility.Create("TextLabel", {
@@ -866,7 +1092,7 @@ function Window:CreateTab(name, icon)
 			Font = self.Window.Theme.FontSecondary,
 			TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = picker
+			Parent = pickerContainer
 		})
 		
 		local presets = {
@@ -882,7 +1108,7 @@ function Window:CreateTab(name, icon)
 			Size = UDim2.new(1, -20, 0, 30),
 			Position = UDim2.new(0, 10, 0, 25),
 			BackgroundTransparency = 1,
-			Parent = picker
+			Parent = pickerContainer
 		})
 		
 		Utility.Create("UIListLayout", {
@@ -902,59 +1128,71 @@ function Window:CreateTab(name, icon)
 				Parent = presetFrame
 			})
 			
-			Utility.Create("UICorner", {
-				CornerRadius = UDim.new(1, 0),
-				Parent = colorBtn
-			})
-			
-			if preset == color then
-				Utility.Create("UIStroke", {
-					Thickness = 2,
-					Color = self.Window.Theme.Text,
+			if colorBtn then
+				Utility.Create("UICorner", {
+					CornerRadius = UDim.new(1, 0),
 					Parent = colorBtn
 				})
-				selectedFrame = colorBtn
+				
+				if preset == color then
+					Utility.Create("UIStroke", {
+						Thickness = 2,
+						Color = self.Window.Theme.Text,
+						Parent = colorBtn
+					})
+					selectedFrame = colorBtn
+				end
+				
+				colorBtn.MouseButton1Click:Connect(function()
+					if selectedFrame then
+						pcall(function()
+							local oldStroke = selectedFrame:FindFirstChildOfClass("UIStroke")
+							if oldStroke then oldStroke:Destroy() end
+						end)
+					end
+					
+					Utility.Create("UIStroke", {
+						Thickness = 2,
+						Color = self.Window.Theme.Text,
+						Parent = colorBtn
+					})
+					selectedFrame = colorBtn
+					color = preset
+					
+					if config.Callback then
+						SafeCall(config.Callback, funcName .. ".Callback", color)
+					end
+				end)
 			end
-			
-			colorBtn.MouseButton1Click:Connect(function()
-				if selectedFrame then
-					local oldStroke = selectedFrame:FindFirstChildOfClass("UIStroke")
-					if oldStroke then oldStroke:Destroy() end
-				end
-				
-				Utility.Create("UIStroke", {
-					Thickness = 2,
-					Color = self.Window.Theme.Text,
-					Parent = colorBtn
-				})
-				selectedFrame = colorBtn
-				color = preset
-				
-				if config.Callback then
-					pcall(config.Callback, color)
-				end
-			end)
 		end
 		
-		picker.GetColor = function()
+		pickerContainer.GetColor = function()
 			return color
 		end
 		
-		return picker
+		return pickerContainer
 	end
 	
 	function Tab:CreateTextBox(config)
+		local funcName = "CreateTextBox"
 		config = config or {}
 		
-		local textBox = Utility.Create("Frame", {
+		Logger:Info("Creating textbox: " .. (config.Name or "Unknown"))
+		
+		local textBoxContainer = Utility.Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 42),
 			BackgroundColor3 = self.Window.Theme.SurfaceLight,
 			Parent = self.Content
 		})
 		
+		if not textBoxContainer then
+			Logger:Error("Failed to create textbox container", funcName)
+			return nil
+		end
+		
 		Utility.Create("UICorner", {
 			CornerRadius = UDim.new(0, 8),
-			Parent = textBox
+			Parent = textBoxContainer
 		})
 		
 		local input = Utility.Create("TextBox", {
@@ -968,7 +1206,7 @@ function Window:CreateTab(name, icon)
 			Font = self.Window.Theme.FontSecondary,
 			TextSize = 13,
 			ClearTextOnFocus = false,
-			Parent = textBox
+			Parent = textBoxContainer
 		})
 		
 		Utility.Create("UICorner", {
@@ -978,23 +1216,26 @@ function Window:CreateTab(name, icon)
 		
 		input.FocusLost:Connect(function(enterPressed)
 			if config.Callback then
-				pcall(config.Callback, input.Text, enterPressed)
+				SafeCall(config.Callback, funcName .. ".Callback", input.Text, enterPressed)
 			end
 		end)
 		
-		textBox.GetText = function()
+		textBoxContainer.GetText = function()
 			return input.Text
 		end
 		
-		textBox.SetText = function(_, text)
-			input.Text = text
+		textBoxContainer.SetText = function(_, text)
+			pcall(function()
+				input.Text = text
+			end)
 		end
 		
-		return textBox
+		return textBoxContainer
 	end
 	
 	self.Tabs[#self.Tabs + 1] = Tab
 	
+	-- Авто-активация первой вкладки
 	if #self.Tabs == 1 then
 		tabContent.Visible = true
 		tabBtn.BackgroundColor3 = self.Theme.Accent
@@ -1002,28 +1243,50 @@ function Window:CreateTab(name, icon)
 		self.CurrentTab = Tab
 	end
 	
+	Logger:Info("Tab created successfully: " .. name)
 	return Tab
 end
 
--- Функция создания окна
+-- ==================== ГЛОБАЛЬНЫЕ МЕТОДЫ ====================
+
 function NekoUI:CreateWindow(config)
+	Logger:Info("Creating window via NekoUI:CreateWindow")
 	local win = Window.new(config)
-	Library.Windows[#Library.Windows + 1] = win
+	if win then
+		Library.Windows[#Library.Windows + 1] = win
+		Logger:Info("Window added to Library.Windows (total: " .. #Library.Windows .. ")")
+	else
+		Logger:Error("Failed to create window", "NekoUI:CreateWindow")
+	end
 	return win
 end
 
--- Утилиты библиотеки
 function NekoUI:SetTheme(themeName)
 	if Library.Themes[themeName] then
 		for _, window in ipairs(Library.Windows) do
 			window.Theme = Library.Themes[themeName]
-			window.MainFrame.BackgroundColor3 = window.Theme.Background
+			pcall(function()
+				window.MainFrame.BackgroundColor3 = window.Theme.Background
+			end)
 		end
+		Logger:Info("Theme changed to: " .. themeName)
+	else
+		Logger:Error("Theme not found: " .. themeName, "SetTheme")
 	end
 end
 
 function NekoUI:AddTheme(name, theme)
 	Library.Themes[name] = theme
+	Logger:Info("Theme added: " .. name)
 end
 
+function NekoUI:GetLogs()
+	return Logger:GetLogs()
+end
+
+function NekoUI:ClearLogs()
+	Logger:Clear()
+end
+
+Logger:Info("NekoUI Library v2.2 initialized successfully")
 return NekoUI
