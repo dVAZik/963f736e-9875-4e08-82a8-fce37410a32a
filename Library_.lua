@@ -1,17 +1,3 @@
---[[
-	🌸 NekoUI Library v2.6 FINAL
-	"Dark Minimal" - UI Library for Roblox Executors
-	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
-	
-	ВСЕ МЕТОДЫ ВОЗВРАЩАЮТ ОБЪЕКТЫ-КОНТРОЛЛЕРЫ (ТАБЛИЦЫ):
-	- ToggleController: SetState / GetState
-	- SliderController: SetValue / GetValue
-	- DropdownController: GetValue / SetOptions
-	- ColorPickerController: GetColor
-	- TextBoxController: GetText / SetText
-	- Button: обычная кнопка
---]]
-
 local NekoUI = {}
 local Library = { Windows = {}, Themes = {} }
 
@@ -250,15 +236,13 @@ function Window:CreateTab(name, icon)
 		return sec
 	end
 	
-	-- ==================== TOGGLE (КОНТРОЛЛЕР) ====================
+	-- ==================== TOGGLE ====================
 	function tab:CreateToggle(cfg)
 		cfg = cfg or {}
 		local on = cfg.Default or false
 		
-		-- КОНТРОЛЛЕР
 		local ToggleController = {}
 		
-		-- Визуал
 		local box = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = T.Sf, Parent = content
 		})
@@ -295,7 +279,6 @@ function Window:CreateTab(name, icon)
 			if cfg.Callback then pcall(cfg.Callback, on) end
 		end)
 		
-		-- Методы контроллера
 		function ToggleController:SetState(state)
 			on = state
 			updateVisual(state)
@@ -310,14 +293,13 @@ function Window:CreateTab(name, icon)
 		return ToggleController
 	end
 	
-	-- ==================== SLIDER (КОНТРОЛЛЕР) ====================
+	-- ==================== SLIDER ====================
 	function tab:CreateSlider(cfg)
 		cfg = cfg or {}
 		local min = cfg.Min or 0
 		local max = cfg.Max or 100
 		local val = cfg.Default or min
 		
-		-- КОНТРОЛЛЕР
 		local SliderController = {}
 		
 		local box = Create("Frame", {
@@ -359,7 +341,6 @@ function Window:CreateTab(name, icon)
 			label.Text = string.format("%s: %.0f", cfg.Name or "Slider", val)
 		end
 		
-		-- Инициализация
 		UpdateVisual(val)
 		
 		local dragging = false
@@ -389,7 +370,6 @@ function Window:CreateTab(name, icon)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 		end)
 		
-		-- Методы контроллера
 		function SliderController:SetValue(v)
 			UpdateVisual(v)
 			if cfg.Callback then pcall(cfg.Callback, val) end
@@ -422,35 +402,57 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
-	-- ==================== DROPDOWN (КОНТРОЛЛЕР) ====================
+	-- ==================== DROPDOWN (ИСПРАВЛЕННЫЙ Z-INDEX) ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
 		local sel = cfg.Default or opts[1] or ""
 		local open = false
 		
-		-- КОНТРОЛЛЕР
 		local DropdownController = {}
 		
+		-- Кнопка дропдауна
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 32),
+			BackgroundColor3 = T.Sf,
+			Parent = content,
+			ZIndex = 2
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = box })
 		
 		local btn3 = Create("TextButton", {
-			Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
-			Text = cfg.Name .. ": " .. sel, TextColor3 = T.Tx,
-			Font = Enum.Font.GothamSemibold, TextSize = 12, Parent = box
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Text = cfg.Name .. ": " .. sel,
+			TextColor3 = T.Tx,
+			Font = Enum.Font.GothamSemibold,
+			TextSize = 12,
+			Parent = box,
+			ZIndex = 2
 		})
 		
+		-- Выпадающий список (САМЫЙ ВЫСОКИЙ ZINDEX)
 		local list = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 3),
-			BackgroundColor3 = T.Sf, Visible = false, Parent = box
+			Size = UDim2.new(1, 0, 0, 0),
+			Position = UDim2.new(0, 0, 1, 3),
+			BackgroundColor3 = T.Sf,
+			Visible = false,
+			Parent = box,
+			ZIndex = 10
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = list })
 		
+		-- Добавляем обводку для выделения
+		Create("UIStroke", {
+			Thickness = 1,
+			Color = T.Tx2,
+			Parent = list
+		})
+		
 		local listLayout = Create("UIListLayout", {
-			Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list
+			Padding = UDim.new(0, 1),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = list
 		})
 		
 		local frames = {}
@@ -459,9 +461,15 @@ function Window:CreateTab(name, icon)
 			frames = {}
 			for _, o in ipairs(opts) do
 				local ob = Create("TextButton", {
-					Size = UDim2.new(1, -4, 0, 24), Position = UDim2.new(0, 2, 0, 0),
-					BackgroundColor3 = T.Sf2, Text = o, TextColor3 = T.Tx2,
-					Font = Enum.Font.GothamSemibold, TextSize = 11, Parent = list
+					Size = UDim2.new(1, -4, 0, 24),
+					Position = UDim2.new(0, 2, 0, 0),
+					BackgroundColor3 = T.Sf2,
+					Text = o,
+					TextColor3 = T.Tx2,
+					Font = Enum.Font.GothamSemibold,
+					TextSize = 11,
+					Parent = list,
+					ZIndex = 10
 				})
 				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ob })
 				ob.MouseButton1Click:Connect(function()
@@ -470,6 +478,8 @@ function Window:CreateTab(name, icon)
 					open = false
 					list.Visible = false
 					box.Size = UDim2.new(1, 0, 0, 32)
+					-- Возвращаем ZIndex контента
+					box.ZIndex = 2
 					if cfg.Callback then pcall(cfg.Callback, sel) end
 				end)
 				table.insert(frames, ob)
@@ -483,10 +493,33 @@ function Window:CreateTab(name, icon)
 		btn3.MouseButton1Click:Connect(function()
 			open = not open
 			list.Visible = open
-			box.Size = UDim2.new(1, 0, 0, open and 32 + list.AbsoluteSize.Y + 3 or 32)
+			if open then
+				box.Size = UDim2.new(1, 0, 0, 32 + list.AbsoluteSize.Y + 3)
+				box.ZIndex = 10 -- ПОВЕРХ ВСЕХ
+			else
+				box.Size = UDim2.new(1, 0, 0, 32)
+				box.ZIndex = 2
+			end
 		end)
 		
-		-- Методы контроллера
+		-- Закрытие по клику вне списка
+		UIS.InputBegan:Connect(function(input)
+			if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local mousePos = UIS:GetMouseLocation()
+				local listPos = list.AbsolutePosition
+				local listSize = list.AbsoluteSize
+				
+				-- Проверяем, что клик ВНЕ списка
+				if mousePos.X < listPos.X or mousePos.X > listPos.X + listSize.X or
+				   mousePos.Y < listPos.Y or mousePos.Y > listPos.Y + listSize.Y then
+					open = false
+					list.Visible = false
+					box.Size = UDim2.new(1, 0, 0, 32)
+					box.ZIndex = 2
+				end
+			end
+		end)
+		
 		function DropdownController:GetValue()
 			return sel
 		end
@@ -501,12 +534,11 @@ function Window:CreateTab(name, icon)
 		return DropdownController
 	end
 	
-	-- ==================== COLOR PICKER (КОНТРОЛЛЕР) ====================
+	-- ==================== COLOR PICKER ====================
 	function tab:CreateColorPicker(cfg)
 		cfg = cfg or {}
 		local col = cfg.Default or Color3.new(1, 1, 1)
 		
-		-- КОНТРОЛЛЕР
 		local ColorPickerController = {}
 		
 		local box = Create("Frame", {
@@ -558,7 +590,6 @@ function Window:CreateTab(name, icon)
 			end)
 		end
 		
-		-- Методы контроллера
 		function ColorPickerController:GetColor()
 			return col
 		end
@@ -568,11 +599,10 @@ function Window:CreateTab(name, icon)
 		return ColorPickerController
 	end
 	
-	-- ==================== TEXTBOX (КОНТРОЛЛЕР) ====================
+	-- ==================== TEXTBOX ====================
 	function tab:CreateTextBox(cfg)
 		cfg = cfg or {}
 		
-		-- КОНТРОЛЛЕР
 		local TextBoxController = {}
 		
 		local box = Create("Frame", {
@@ -594,7 +624,6 @@ function Window:CreateTab(name, icon)
 			if cfg.Callback then pcall(cfg.Callback, inp.Text, enter) end
 		end)
 		
-		-- Методы контроллера
 		function TextBoxController:GetText()
 			return inp.Text
 		end
