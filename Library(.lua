@@ -1,18 +1,7 @@
---[[
-	🌸 NekoUI Library v2.4 FINAL FIX
-	"Dark Minimal" - UI Library for Roblox Executors
-	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
-	
-	ИСПРАВЛЕНИЯ v2.4:
-	- SetValue привязан к ПРАВИЛЬНОМУ объекту (контейнер слайдера)
-	- Оптимизированная структура с таблицами функций
-	- Никаких лагов, минимальное потребление
---]]
-
 local NekoUI = {}
 local Library = { Windows = {}, Themes = {} }
 
--- Сервисы (кэшируем один раз)
+-- Сервисы
 local UIS = game:GetService("UserInputService")
 local TS = game:GetService("TweenService")
 local CG = game:GetService("CoreGui")
@@ -89,7 +78,6 @@ function Window.new(cfg)
 	Create("UICorner", { CornerRadius = UDim.new(0, T.R), Parent = self.Main })
 	Create("UIStroke", { Thickness = 1, Color = T.Sf2, Parent = self.Main })
 	
-	-- TitleBar
 	local bar = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = T.Sf, BorderSizePixel = 0,
 		Parent = self.Main
@@ -103,7 +91,6 @@ function Window.new(cfg)
 		Parent = bar
 	})
 	
-	-- Close
 	local close = Create("TextButton", {
 		Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(1, -32, 0, 6),
 		BackgroundColor3 = T.Sf2, Text = "✕", TextColor3 = T.Tx,
@@ -112,7 +99,6 @@ function Window.new(cfg)
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = close })
 	close.MouseButton1Click:Connect(function() self.Main.Visible = false end)
 	
-	-- Pin
 	local pin = Create("TextButton", {
 		Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(1, -62, 0, 6),
 		BackgroundColor3 = T.Sf2, Text = "📌", TextColor3 = T.Tx,
@@ -127,7 +113,6 @@ function Window.new(cfg)
 	
 	Dragify(self.Main, bar)
 	
-	-- TabBar
 	self.TabBar = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 34), Position = UDim2.new(0, 0, 0, 38),
 		BackgroundColor3 = T.Sf, BorderSizePixel = 0, Parent = self.Main
@@ -148,7 +133,6 @@ function Window.new(cfg)
 		self.TabScroll.CanvasSize = UDim2.new(0, tabLayout.AbsoluteContentSize.X + 8, 0, 0)
 	end)
 	
-	-- Content
 	self.Content = Create("ScrollingFrame", {
 		Size = UDim2.new(1, -6, 1, -80), Position = UDim2.new(0, 3, 0, 76),
 		BackgroundTransparency = 1, ScrollBarThickness = 3,
@@ -164,7 +148,6 @@ function Window.new(cfg)
 		self.Content.CanvasSize = UDim2.new(0, 0, 0, self.CLayout.AbsoluteContentSize.Y + 8)
 	end)
 	
-	-- Закрытие по клику вне
 	UIS.InputBegan:Connect(function(input)
 		if not pinned and input.UserInputType == Enum.UserInputType.MouseButton1 and self.Main.Visible then
 			local m = UIS:GetMouseLocation()
@@ -176,14 +159,12 @@ function Window.new(cfg)
 		end
 	end)
 	
-	-- Горячая клавиша
 	UIS.InputBegan:Connect(function(input, gpe)
 		if not gpe and input.KeyCode == self.Key then
 			self.Main.Visible = not self.Main.Visible
 		end
 	end)
 	
-	-- Мобильная кнопка
 	if cfg.MobileButton ~= false then
 		local mb = Create("TextButton", {
 			Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(1, -60, 1, -60),
@@ -200,9 +181,9 @@ function Window.new(cfg)
 	return self
 end
 
--- ==================== СОЗДАНИЕ ВКЛАДКИ ====================
+-- ==================== CREATE TAB ====================
 function Window:CreateTab(name, icon)
-	local tab = { Window = self, Elements = {} }
+	local tab = { Window = self }
 	
 	local btn = Create("TextButton", {
 		Size = UDim2.new(0, 95, 0, 24), BackgroundColor3 = T.Sf2,
@@ -240,8 +221,7 @@ function Window:CreateTab(name, icon)
 	tab._btn = btn
 	tab._content = content
 	
-	-- ==================== МЕТОДЫ (ОПТИМИЗИРОВАННЫЕ) ====================
-	
+	-- ==================== SECTION ====================
 	function tab:CreateSection(name)
 		local sec = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = T.Sf, Parent = content
@@ -256,6 +236,7 @@ function Window:CreateTab(name, icon)
 		return sec
 	end
 	
+	-- ==================== TOGGLE ====================
 	function tab:CreateToggle(cfg)
 		cfg = cfg or {}
 		local on = cfg.Default or false
@@ -295,92 +276,134 @@ function Window:CreateTab(name, icon)
 			if cfg.Callback then pcall(cfg.Callback, on) end
 		end)
 		
-		-- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: методы на box
 		box.SetState = function(_, s) on = s; update(s) end
 		box.GetState = function() return on end
 		
-		table.insert(tab.Elements, { Type = "Toggle", Object = box, Name = cfg.Name })
 		return box
 	end
 	
+	-- ==================== SLIDER (ПОЛНОСТЬЮ НОВЫЙ) ====================
 	function tab:CreateSlider(cfg)
 		cfg = cfg or {}
-		local min, max = cfg.Min or 0, cfg.Max or 100
+		local min = cfg.Min or 0
+		local max = cfg.Max or 100
 		local val = cfg.Default or min
 		
-		-- КОНТЕЙНЕР СЛАЙДЕРА (на него вешаем SetValue)
+		-- Создаём объект-контроллер (таблицу)
+		local SliderController = {}
+		
+		-- Визуальный контейнер
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 56),
+			BackgroundColor3 = T.Sf,
+			Parent = content
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = box })
 		
+		-- Текст
 		local label = Create("TextLabel", {
-			Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 10, 0, 4),
-			BackgroundTransparency = 1, TextColor3 = T.Tx,
-			Font = Enum.Font.GothamSemibold, TextSize = 12,
-			TextXAlignment = Enum.TextXAlignment.Left, Parent = box
+			Size = UDim2.new(1, -20, 0, 18),
+			Position = UDim2.new(0, 10, 0, 4),
+			BackgroundTransparency = 1,
+			Text = string.format("%s: %.0f", cfg.Name or "Slider", val),
+			TextColor3 = T.Tx,
+			Font = Enum.Font.GothamSemibold,
+			TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = box
 		})
 		
+		-- Полоса
 		local bar = Create("TextButton", {
-			Size = UDim2.new(1, -20, 0, 5), Position = UDim2.new(0, 10, 0, 28),
-			BackgroundColor3 = T.Sf2, Text = "", BorderSizePixel = 0, Parent = box
+			Size = UDim2.new(1, -20, 0, 5),
+			Position = UDim2.new(0, 10, 0, 28),
+			BackgroundColor3 = T.Sf2,
+			Text = "",
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Parent = box
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 		
+		-- Заполнение
 		local fill = Create("Frame", {
-			Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = T.Tx,
-			BorderSizePixel = 0, Parent = bar
+			Size = UDim2.new((val - min) / (max - min), 0, 1, 0),
+			BackgroundColor3 = T.Tx,
+			BorderSizePixel = 0,
+			Parent = bar
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 		
-		local knob2 = Create("Frame", {
-			Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, -6, 0.5, -6),
-			BackgroundColor3 = T.Tx, Parent = bar
+		-- Кружок
+		local knob = Create("Frame", {
+			Size = UDim2.new(0, 12, 0, 12),
+			Position = UDim2.new((val - min) / (max - min), -6, 0.5, -6),
+			BackgroundColor3 = T.Tx,
+			BorderSizePixel = 0,
+			Parent = bar
 		})
-		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob2 })
+		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 		
-		-- Функция обновления (внутренняя)
-		local function setVal(v)
-			val = math.clamp(v, min, max)
-			local pct = (val - min) / (max - min)
-			fill.Size = UDim2.new(pct, 0, 1, 0)
-			knob2.Position = UDim2.new(pct, -6, 0.5, -6)
+		-- Функция обновления
+		local function UpdateValue(newVal)
+			val = math.clamp(newVal, min, max)
+			local percent = (val - min) / (max - min)
+			fill.Size = UDim2.new(percent, 0, 1, 0)
+			knob.Position = UDim2.new(percent, -6, 0.5, -6)
 			label.Text = string.format("%s: %.0f", cfg.Name or "Slider", val)
-			if cfg.Callback then pcall(cfg.Callback, val) end
 		end
 		
-		-- Инициализация
-		setVal(val)
-		
-		-- Drag логика
+		-- Обработка перетаскивания
 		local dragging = false
-		bar.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dragging = true
-				local mx = UIS:GetMouseLocation().X
-				local bx, bw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
-				setVal(min + (max - min) * math.clamp((mx - bx) / bw, 0, 1))
+		
+		local function UpdateFromMouse()
+			local mouseX = UIS:GetMouseLocation().X
+			local barX = bar.AbsolutePosition.X
+			local barW = bar.AbsoluteSize.X
+			local percent = math.clamp((mouseX - barX) / barW, 0, 1)
+			local newVal = min + (max - min) * percent
+			UpdateValue(newVal)
+			if cfg.Callback then
+				pcall(cfg.Callback, val)
 			end
+		end
+		
+		bar.MouseButton1Down:Connect(function()
+			dragging = true
+			UpdateFromMouse()
 		end)
+		
 		UIS.InputChanged:Connect(function(input)
 			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-				local mx = UIS:GetMouseLocation().X
-				local bx, bw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
-				setVal(min + (max - min) * math.clamp((mx - bx) / bw, 0, 1))
+				UpdateFromMouse()
 			end
 		end)
+		
 		UIS.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
 		end)
 		
-		-- КЛЮЧЕВОЕ: SetValue/GetValue на КОНТЕЙНЕРЕ box, а не на bar/fill/knob
-		box.SetValue = function(_, v) setVal(v) end
-		box.GetValue = function() return val end
+		-- Методы контроллера (работают гарантированно)
+		function SliderController:SetValue(v)
+			UpdateValue(v)
+			if cfg.Callback then
+				pcall(cfg.Callback, val)
+			end
+		end
 		
-		table.insert(tab.Elements, { Type = "Slider", Object = box, Name = cfg.Name })
-		return box
+		function SliderController:GetValue()
+			return val
+		end
+		
+		-- Сохраняем ссылку на бокс для совместимости
+		SliderController._box = box
+		
+		return SliderController
 	end
 	
+	-- ==================== BUTTON ====================
 	function tab:CreateButton(cfg)
 		cfg = cfg or {}
 		local btn2 = Create("TextButton", {
@@ -398,6 +421,7 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
+	-- ==================== DROPDOWN ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
@@ -460,6 +484,7 @@ function Window:CreateTab(name, icon)
 		return box
 	end
 	
+	-- ==================== COLOR PICKER ====================
 	function tab:CreateColorPicker(cfg)
 		cfg = cfg or {}
 		local col = cfg.Default or Color3.new(1, 1, 1)
@@ -516,6 +541,7 @@ function Window:CreateTab(name, icon)
 		return box
 	end
 	
+	-- ==================== TEXTBOX ====================
 	function tab:CreateTextBox(cfg)
 		cfg = cfg or {}
 		local box = Create("Frame", {
