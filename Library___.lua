@@ -1,12 +1,13 @@
 --[[
-	🌸 NekoUI Library v2.9 FINAL
+	🌸 NekoUI Library v3.0 FINAL
 	"Dark Minimal" - UI Library for Roblox Executors
 	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
 	
-	ИСПРАВЛЕНИЯ v2.9:
-	- Dropdown: исправлен ipairs (проверка на nil)
-	- Dropdown: полностью переработана логика открытия/закрытия
-	- Все методы защищены от ошибок
+	ИСПРАВЛЕНИЯ v3.0:
+	- Dropdown: ScrollingFrame с UIListLayout
+	- Dropdown: автоматический размер (AutomaticCanvasSize)
+	- Dropdown: не выходит за границы экрана
+	- Все элементы адаптивные
 --]]
 
 local NekoUI = {}
@@ -50,10 +51,9 @@ local Base = Create("ScreenGui", { Name = "NekoUI", Parent = CG, ResetOnSpawn = 
 Create("UIScale", { Parent = Base, Scale = math.clamp(GS:GetScreenResolution().X / 1920, 0.6, 1.5) })
 local Container = Create("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = Base })
 
--- Глобальный список всех открытых дропдаунов
+-- Глобальный список дропдаунов
 local AllDropdowns = {}
 
--- Функция закрытия всех дропдаунов
 local function CloseAllDropdowns(except)
 	for _, dd in ipairs(AllDropdowns) do
 		if dd ~= except then
@@ -404,7 +404,7 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
-	-- ==================== DROPDOWN (ПОЛНОСТЬЮ ИСПРАВЛЕН) ====================
+	-- ==================== DROPDOWN (SCROLLINGFRAME + AUTOMATIC SIZE) ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
@@ -425,32 +425,65 @@ function Window:CreateTab(name, icon)
 			Font = Enum.Font.GothamSemibold, TextSize = 13, Parent = box, ZIndex = 1
 		})
 		
-		-- Выпадающий список (в Base, чтобы не обрезался)
-		local list = Create("Frame", {
-			Name = "DropdownList_" .. (cfg.Name or "Unknown"):gsub("%s", "_"),
+		-- Контейнер списка (максимальная высота - 250px, дальше скролл)
+		local MAX_LIST_HEIGHT = 250
+		
+		local listContainer = Create("Frame", {
+			Name = "DropdownContainer_" .. (cfg.Name or "Unknown"):gsub("%s", "_"),
 			Size = UDim2.new(0, 0, 0, 0),
 			BackgroundColor3 = T.Sf, Visible = false, Parent = Base,
 			ZIndex = 999, BorderSizePixel = 0
 		})
-		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = list })
-		Create("UIStroke", { Thickness = 1.5, Color = T.Tx, Parent = list })
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listContainer })
+		Create("UIStroke", { Thickness = 1.5, Color = T.Tx, Parent = listContainer })
 		
-		local listLayout = Create("UIListLayout", {
-			Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list
+		-- ScrollingFrame внутри контейнера
+		local listScroll = Create("ScrollingFrame", {
+			Size = UDim2.new(1, -4, 1, -4),
+			Position = UDim2.new(0, 2, 0, 2),
+			BackgroundTransparency = 1,
+			ScrollBarThickness = 4,
+			ScrollBarImageColor3 = T.Tx2,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y, -- АВТОМАТИЧЕСКИЙ РАЗМЕР!
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			Parent = listContainer,
+			ZIndex = 999
 		})
 		
-		-- Обновление позиции
-		local function UpdatePos()
+		local listLayout = Create("UIListLayout", {
+			Padding = UDim.new(0, 1),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = listScroll
+		})
+		
+		-- Обновление размеров
+		local function UpdateSize()
+			local totalHeight = listLayout.AbsoluteContentSize.Y + 4
+			local finalHeight = math.min(totalHeight, MAX_LIST_HEIGHT)
+			
 			local bp = box.AbsolutePosition
 			local bs = box.AbsoluteSize
-			list.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3)
-			list.Size = UDim2.new(0, bs.X, 0, listLayout.AbsoluteContentSize.Y + 2)
+			
+			-- Проверка: не выходит ли за экран снизу
+			local screenBottom = GS:GetScreenResolution().Y
+			local listBottom = bp.Y + bs.Y + 3 + finalHeight
+			
+			if listBottom > screenBottom then
+				-- Показываем НАД кнопкой
+				listContainer.Position = UDim2.new(0, bp.X, 0, bp.Y - finalHeight - 3)
+			else
+				-- Показываем ПОД кнопкой
+				listContainer.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3)
+			end
+			
+			listContainer.Size = UDim2.new(0, bs.X, 0, finalHeight)
+			listScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 		end
 		
 		-- Построение опций
 		local optionButtons = {}
 		local function BuildOptions()
-			-- Удаляем старые
 			for _, ob in ipairs(optionButtons) do
 				pcall(function() ob:Destroy() end)
 			end
@@ -462,7 +495,7 @@ function Window:CreateTab(name, icon)
 					Position = UDim2.new(0, 2, 0, 0),
 					BackgroundColor3 = T.Sf2, Text = o, TextColor3 = T.Tx2,
 					Font = Enum.Font.GothamSemibold, TextSize = 12,
-					Parent = list, ZIndex = 999
+					Parent = listScroll, ZIndex = 999
 				})
 				Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = ob })
 				
@@ -475,48 +508,50 @@ function Window:CreateTab(name, icon)
 				
 				table.insert(optionButtons, ob)
 			end
+			
+			-- Обновляем размер после постройки
+			task.wait()
+			if open then UpdateSize() end
 		end
 		BuildOptions()
 		
-		-- Методы контроллера
+		-- Обновление размера при изменении контента
+		listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if open then UpdateSize() end
+		end)
+		
+		-- Методы
 		function DropdownController:Open()
 			CloseAllDropdowns(DropdownController)
 			open = true
-			UpdatePos()
-			list.Visible = true
+			UpdateSize()
+			listContainer.Visible = true
 			btn3.Text = "▲  " .. cfg.Name .. ": " .. sel
 		end
 		
 		function DropdownController:Close()
 			open = false
-			list.Visible = false
+			listContainer.Visible = false
 			btn3.Text = "▼  " .. cfg.Name .. ": " .. sel
 		end
 		
-		function DropdownController:GetValue()
-			return sel
-		end
-		
+		function DropdownController:GetValue() return sel end
 		function DropdownController:SetOptions(newOpts)
 			opts = newOpts or {}
 			BuildOptions()
 		end
 		
-		-- Клик по кнопке
 		btn3.MouseButton1Click:Connect(function()
-			if open then
-				DropdownController:Close()
-			else
-				DropdownController:Open()
-			end
+			if open then DropdownController:Close()
+			else DropdownController:Open() end
 		end)
 		
-		-- Клик вне списка
+		-- Клик вне
 		UIS.InputBegan:Connect(function(input)
 			if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
 				local m = UIS:GetMouseLocation()
-				local lp = list.AbsolutePosition
-				local ls = list.AbsoluteSize
+				local lp = listContainer.AbsolutePosition
+				local ls = listContainer.AbsoluteSize
 				local bp2 = box.AbsolutePosition
 				local bs2 = box.AbsoluteSize
 				
@@ -530,9 +565,8 @@ function Window:CreateTab(name, icon)
 		end)
 		
 		DropdownController._box = box
-		DropdownController._list = list
+		DropdownController._list = listContainer
 		
-		-- Добавляем в глобальный список
 		table.insert(AllDropdowns, DropdownController)
 		
 		return DropdownController
