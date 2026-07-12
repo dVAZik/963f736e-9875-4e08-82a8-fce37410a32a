@@ -1,3 +1,15 @@
+--[[
+	🌸 NekoUI Library v3.1 FINAL
+	"Dark Minimal" - UI Library for Roblox Executors
+	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
+	
+	ИСПРАВЛЕНИЯ v3.1:
+	- Content: ScrollingFrame с AutomaticCanvasSize
+	- Все элементы в UIListLayout, не накладываются
+	- Правильные отступы между элементами
+	- Dropdown: ScrollingFrame + AutomaticCanvasSize
+--]]
+
 local NekoUI = {}
 local Library = { Windows = {}, Themes = {} }
 
@@ -71,6 +83,7 @@ function Window.new(cfg)
 	Create("UICorner", { CornerRadius = UDim.new(0, T.R), Parent = self.Main })
 	Create("UIStroke", { Thickness = 1, Color = T.Sf2, Parent = self.Main })
 	
+	-- TitleBar
 	local bar = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, BorderSizePixel = 0,
 		Parent = self.Main
@@ -148,21 +161,26 @@ function Window.new(cfg)
 		self.TabScroll.CanvasSize = UDim2.new(0, tabLayout.AbsoluteContentSize.X + 10, 0, 0)
 	end)
 	
-	-- Content
+	-- ==================== CONTENT (SCROLLINGFRAME + AUTOMATIC SIZE) ====================
 	self.Content = Create("ScrollingFrame", {
-		Size = UDim2.new(1, -8, 1, -84), Position = UDim2.new(0, 4, 0, 80),
-		BackgroundTransparency = 1, ScrollBarThickness = 3,
-		ScrollBarImageColor3 = T.Tx2, CanvasSize = UDim2.new(0, 0, 0, 0),
-		Parent = self.Main, ZIndex = 1
+		Size = UDim2.new(1, -8, 1, -84),
+		Position = UDim2.new(0, 4, 0, 80),
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 3,
+		ScrollBarImageColor3 = T.Tx2,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y, -- АВТОМАТИЧЕСКИЙ РАЗМЕР КАНВАСА
+		ScrollingDirection = Enum.ScrollingDirection.Y, -- ТОЛЬКО ВЕРТИКАЛЬНЫЙ СКРОЛЛ
+		Parent = self.Main,
+		ZIndex = 1
 	})
 	
+	-- UIListLayout внутри Content (элементы не накладываются)
 	self.CLayout = Create("UIListLayout", {
-		Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 6), -- Отступ между элементами 6px
+		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = self.Content
 	})
-	self.CLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		self.Content.CanvasSize = UDim2.new(0, 0, 0, self.CLayout.AbsoluteContentSize.Y + 8)
-	end)
 	
 	-- Клик вне меню
 	UIS.InputBegan:Connect(function(input)
@@ -208,6 +226,7 @@ end
 function Window:CreateTab(name, icon)
 	local tab = { Window = self }
 	
+	-- Кнопка вкладки
 	local btn = Create("TextButton", {
 		Size = UDim2.new(0, 100, 0, 26), BackgroundColor3 = T.Sf2,
 		Text = (icon or "") .. " " .. name, TextColor3 = T.Tx2,
@@ -216,18 +235,23 @@ function Window:CreateTab(name, icon)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn })
 	
-	local content = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
-		Visible = false, Parent = self.Content
+	-- Контейнер вкладки (внутри Content ScrollingFrame)
+	local contentContainer = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = self.Content
 	})
 	
-	local layout = Create("UIListLayout", {
-		Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = content
+	-- UIListLayout для элементов внутри вкладки
+	local contentLayout = Create("UIListLayout", {
+		Padding = UDim.new(0, 6), -- Отступ между элементами
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = contentContainer
 	})
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		content.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y + 4)
-	end)
+	
+	-- AutomaticSize для контейнера вкладки
+	contentContainer.AutomaticSize = Enum.AutomaticSize.Y
 	
 	btn.MouseButton1Click:Connect(function()
 		CloseAllDropdowns(nil)
@@ -236,19 +260,22 @@ function Window:CreateTab(name, icon)
 			t._btn.BackgroundColor3 = T.Sf2
 			t._btn.TextColor3 = T.Tx2
 		end
-		content.Visible = true
+		contentContainer.Visible = true
 		btn.BackgroundColor3 = T.Tx2
 		btn.TextColor3 = T.Bg
 		self.CurrentTab = tab
 	end)
 	
 	tab._btn = btn
-	tab._content = content
+	tab._content = contentContainer
 	
 	-- ==================== SECTION ====================
 	function tab:CreateSection(name)
 		local sec = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 28),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1 -- Порядок в Layout
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = sec })
 		Create("TextLabel", {
@@ -267,7 +294,10 @@ function Window:CreateTab(name, icon)
 		local ToggleController = {}
 		
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 40),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
@@ -314,7 +344,10 @@ function Window:CreateTab(name, icon)
 		local SliderController = {}
 		
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 58), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 58),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
@@ -378,9 +411,12 @@ function Window:CreateTab(name, icon)
 	function tab:CreateButton(cfg)
 		cfg = cfg or {}
 		local btn2 = Create("TextButton", {
-			Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = T.Sf,
+			Size = UDim2.new(1, 0, 0, 34),
+			BackgroundColor3 = T.Sf,
 			Text = cfg.Name or "Button", TextColor3 = T.Tx,
-			Font = Enum.Font.GothamSemibold, TextSize = 14, Parent = content
+			Font = Enum.Font.GothamSemibold, TextSize = 14,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn2 })
 		btn2.MouseButton1Click:Connect(function()
@@ -392,7 +428,7 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
-	-- ==================== DROPDOWN (SCROLLINGFRAME + AUTOMATIC SIZE) ====================
+	-- ==================== DROPDOWN ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
@@ -401,9 +437,12 @@ function Window:CreateTab(name, icon)
 		
 		local DropdownController = {}
 		
-		-- Кнопка
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = T.Sf, Parent = content, ZIndex = 1
+			Size = UDim2.new(1, 0, 0, 34),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			ZIndex = 1,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
@@ -413,7 +452,6 @@ function Window:CreateTab(name, icon)
 			Font = Enum.Font.GothamSemibold, TextSize = 13, Parent = box, ZIndex = 1
 		})
 		
-		-- Контейнер списка (максимальная высота - 250px, дальше скролл)
 		local MAX_LIST_HEIGHT = 250
 		
 		local listContainer = Create("Frame", {
@@ -425,7 +463,7 @@ function Window:CreateTab(name, icon)
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listContainer })
 		Create("UIStroke", { Thickness = 1.5, Color = T.Tx, Parent = listContainer })
 		
-		-- ScrollingFrame внутри контейнера
+		-- ScrollingFrame для опций
 		local listScroll = Create("ScrollingFrame", {
 			Size = UDim2.new(1, -4, 1, -4),
 			Position = UDim2.new(0, 2, 0, 2),
@@ -433,19 +471,19 @@ function Window:CreateTab(name, icon)
 			ScrollBarThickness = 4,
 			ScrollBarImageColor3 = T.Tx2,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
-			AutomaticCanvasSize = Enum.AutomaticSize.Y, -- АВТОМАТИЧЕСКИЙ РАЗМЕР!
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			Parent = listContainer,
 			ZIndex = 999
 		})
 		
+		-- UIListLayout для опций
 		local listLayout = Create("UIListLayout", {
-			Padding = UDim.new(0, 1),
+			Padding = UDim.new(0, 2),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = listScroll
 		})
 		
-		-- Обновление размеров
 		local function UpdateSize()
 			local totalHeight = listLayout.AbsoluteContentSize.Y + 4
 			local finalHeight = math.min(totalHeight, MAX_LIST_HEIGHT)
@@ -453,15 +491,12 @@ function Window:CreateTab(name, icon)
 			local bp = box.AbsolutePosition
 			local bs = box.AbsoluteSize
 			
-			-- Проверка: не выходит ли за экран снизу
 			local screenBottom = GS:GetScreenResolution().Y
 			local listBottom = bp.Y + bs.Y + 3 + finalHeight
 			
 			if listBottom > screenBottom then
-				-- Показываем НАД кнопкой
 				listContainer.Position = UDim2.new(0, bp.X, 0, bp.Y - finalHeight - 3)
 			else
-				-- Показываем ПОД кнопкой
 				listContainer.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3)
 			end
 			
@@ -469,7 +504,6 @@ function Window:CreateTab(name, icon)
 			listScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 		end
 		
-		-- Построение опций
 		local optionButtons = {}
 		local function BuildOptions()
 			for _, ob in ipairs(optionButtons) do
@@ -497,18 +531,15 @@ function Window:CreateTab(name, icon)
 				table.insert(optionButtons, ob)
 			end
 			
-			-- Обновляем размер после постройки
 			task.wait()
 			if open then UpdateSize() end
 		end
 		BuildOptions()
 		
-		-- Обновление размера при изменении контента
 		listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 			if open then UpdateSize() end
 		end)
 		
-		-- Методы
 		function DropdownController:Open()
 			CloseAllDropdowns(DropdownController)
 			open = true
@@ -534,7 +565,6 @@ function Window:CreateTab(name, icon)
 			else DropdownController:Open() end
 		end)
 		
-		-- Клик вне
 		UIS.InputBegan:Connect(function(input)
 			if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
 				local m = UIS:GetMouseLocation()
@@ -567,7 +597,10 @@ function Window:CreateTab(name, icon)
 		local ColorPickerController = {}
 		
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 52),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
@@ -625,7 +658,10 @@ function Window:CreateTab(name, icon)
 		local TextBoxController = {}
 		
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, Parent = content
+			Size = UDim2.new(1, 0, 0, 40),
+			BackgroundColor3 = T.Sf,
+			Parent = contentContainer,
+			LayoutOrder = #contentContainer:GetChildren() + 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
@@ -652,7 +688,7 @@ function Window:CreateTab(name, icon)
 	table.insert(self.Tabs, tab)
 	
 	if #self.Tabs == 1 then
-		content.Visible = true
+		contentContainer.Visible = true
 		btn.BackgroundColor3 = T.Tx2
 		btn.TextColor3 = T.Bg
 		self.CurrentTab = tab
