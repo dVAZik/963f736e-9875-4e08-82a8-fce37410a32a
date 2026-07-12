@@ -1,14 +1,12 @@
 --[[
-	🌸 NekoUI Library v2.8 FINAL
+	🌸 NekoUI Library v2.9 FINAL
 	"Dark Minimal" - UI Library for Roblox Executors
 	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
 	
-	ИСПРАВЛЕНИЯ v2.8:
-	- Dropdown: выпадает ПОВЕРХ всего, не обрезается
-	- Dropdown: правильный ZIndex и позиционирование
-	- Мобильная кнопка: Draggable + Active
-	- Окно: увеличено до 620x420
-	- Все объекты с правильными ZIndex
+	ИСПРАВЛЕНИЯ v2.9:
+	- Dropdown: исправлен ipairs (проверка на nil)
+	- Dropdown: полностью переработана логика открытия/закрытия
+	- Все методы защищены от ошибок
 --]]
 
 local NekoUI = {}
@@ -52,6 +50,18 @@ local Base = Create("ScreenGui", { Name = "NekoUI", Parent = CG, ResetOnSpawn = 
 Create("UIScale", { Parent = Base, Scale = math.clamp(GS:GetScreenResolution().X / 1920, 0.6, 1.5) })
 local Container = Create("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = Base })
 
+-- Глобальный список всех открытых дропдаунов
+local AllDropdowns = {}
+
+-- Функция закрытия всех дропдаунов
+local function CloseAllDropdowns(except)
+	for _, dd in ipairs(AllDropdowns) do
+		if dd ~= except then
+			pcall(function() dd:Close() end)
+		end
+	end
+end
+
 -- ==================== WINDOW ====================
 local Window = {}
 Window.__index = Window
@@ -61,22 +71,18 @@ function Window.new(cfg)
 	self.Name = cfg.Name or "Menu"
 	self.Key = cfg.Key or Enum.KeyCode.Insert
 	self.Tabs = {}
-	self.Dropdowns = {} -- Список всех дропдаунов для закрытия
 	
 	self.Holder = Create("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = Container })
 	
-	-- УВЕЛИЧЕННОЕ ОКНО: 620x420
 	self.Main = Create("Frame", {
 		Size = UDim2.new(0, 620, 0, 420),
 		Position = UDim2.new(0.5, -310, 0.5, -210),
 		BackgroundColor3 = T.Bg, BorderSizePixel = 0, Visible = false,
-		Parent = self.Holder,
-		ZIndex = 1
+		Parent = self.Holder, ZIndex = 1
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, T.R), Parent = self.Main })
 	Create("UIStroke", { Thickness = 1, Color = T.Sf2, Parent = self.Main })
 	
-	-- TitleBar
 	local bar = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, BorderSizePixel = 0,
 		Parent = self.Main
@@ -98,10 +104,7 @@ function Window.new(cfg)
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = close })
 	close.MouseButton1Click:Connect(function()
 		self.Main.Visible = false
-		-- Закрыть все дропдауны
-		for _, dd in ipairs(self.Dropdowns) do
-			pcall(function() dd:Close() end)
-		end
+		CloseAllDropdowns(nil)
 	end)
 	
 	local pin = Create("TextButton", {
@@ -116,23 +119,19 @@ function Window.new(cfg)
 		pin.BackgroundColor3 = pinned and T.Tx2 or T.Sf2
 	end)
 	
-	-- Drag через Draggable + Active
+	-- Drag
 	local dragging = false
 	local dragStart, frameStart
-	
 	bar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			dragStart = input.Position
 			frameStart = self.Main.Position
 			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
 		end
 	end)
-	
 	UIS.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
@@ -166,8 +165,7 @@ function Window.new(cfg)
 		Size = UDim2.new(1, -8, 1, -84), Position = UDim2.new(0, 4, 0, 80),
 		BackgroundTransparency = 1, ScrollBarThickness = 3,
 		ScrollBarImageColor3 = T.Tx2, CanvasSize = UDim2.new(0, 0, 0, 0),
-		Parent = self.Main,
-		ZIndex = 1
+		Parent = self.Main, ZIndex = 1
 	})
 	
 	self.CLayout = Create("UIListLayout", {
@@ -186,9 +184,7 @@ function Window.new(cfg)
 			local s = self.Main.AbsoluteSize
 			if m.X < p.X or m.X > p.X + s.X or m.Y < p.Y or m.Y > p.Y + s.Y then
 				self.Main.Visible = false
-				for _, dd in ipairs(self.Dropdowns) do
-					pcall(function() dd:Close() end)
-				end
+				CloseAllDropdowns(nil)
 			end
 		end
 	end)
@@ -200,21 +196,15 @@ function Window.new(cfg)
 		end
 	end)
 	
-	-- Мобильная кнопка (Draggable + Active)
+	-- Мобильная кнопка
 	if cfg.MobileButton ~= false then
 		local mb = Create("TextButton", {
 			Size = UDim2.new(0, 50, 0, 50),
 			Position = UDim2.new(1, -65, 1, -65),
-			BackgroundColor3 = T.Bg,
-			Text = "☰",
-			TextColor3 = T.Tx,
-			Font = Enum.Font.GothamBold,
-			TextSize = 22,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Parent = self.Holder,
-			Draggable = true,
-			Active = true,
-			ZIndex = 100
+			BackgroundColor3 = T.Bg, Text = "☰", TextColor3 = T.Tx,
+			Font = Enum.Font.GothamBold, TextSize = 22,
+			AnchorPoint = Vector2.new(0.5, 0.5), Parent = self.Holder,
+			Draggable = true, Active = true, ZIndex = 100
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = mb })
 		Create("UIStroke", { Thickness = 1.5, Color = T.Tx2, Parent = mb })
@@ -252,11 +242,7 @@ function Window:CreateTab(name, icon)
 	end)
 	
 	btn.MouseButton1Click:Connect(function()
-		-- Закрыть все дропдауны
-		for _, dd in ipairs(self.Dropdowns) do
-			pcall(function() dd:Close() end)
-		end
-		
+		CloseAllDropdowns(nil)
 		for _, t in pairs(self.Tabs) do
 			t._content.Visible = false
 			t._btn.BackgroundColor3 = T.Sf2
@@ -290,7 +276,6 @@ function Window:CreateTab(name, icon)
 	function tab:CreateToggle(cfg)
 		cfg = cfg or {}
 		local on = cfg.Default or false
-		
 		local ToggleController = {}
 		
 		local box = Create("Frame", {
@@ -307,8 +292,7 @@ function Window:CreateTab(name, icon)
 		
 		local sw = Create("TextButton", {
 			Size = UDim2.new(0, 44, 0, 22), Position = UDim2.new(1, -56, 0.5, -11),
-			BackgroundColor3 = on and T.Tx or T.Sf2, Text = "", BorderSizePixel = 0,
-			Parent = box
+			BackgroundColor3 = on and T.Tx or T.Sf2, Text = "", BorderSizePixel = 0, Parent = box
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = sw })
 		
@@ -324,20 +308,12 @@ function Window:CreateTab(name, icon)
 		end
 		
 		sw.MouseButton1Click:Connect(function()
-			on = not on
-			updateVisual(on)
+			on = not on; updateVisual(on)
 			if cfg.Callback then pcall(cfg.Callback, on) end
 		end)
 		
-		function ToggleController:SetState(state)
-			on = state
-			updateVisual(state)
-		end
-		
-		function ToggleController:GetState()
-			return on
-		end
-		
+		function ToggleController:SetState(state) on = state; updateVisual(state) end
+		function ToggleController:GetState() return on end
 		ToggleController._box = box
 		return ToggleController
 	end
@@ -345,10 +321,8 @@ function Window:CreateTab(name, icon)
 	-- ==================== SLIDER ====================
 	function tab:CreateSlider(cfg)
 		cfg = cfg or {}
-		local min = cfg.Min or 0
-		local max = cfg.Max or 100
+		local min, max = cfg.Min or 0, cfg.Max or 100
 		local val = cfg.Default or min
-		
 		local SliderController = {}
 		
 		local box = Create("Frame", {
@@ -371,8 +345,7 @@ function Window:CreateTab(name, icon)
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 		
 		local fill = Create("Frame", {
-			Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = T.Tx,
-			BorderSizePixel = 0, Parent = bar
+			Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = T.Tx, BorderSizePixel = 0, Parent = bar
 		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 		
@@ -384,49 +357,31 @@ function Window:CreateTab(name, icon)
 		
 		local function UpdateVisual(newVal)
 			val = math.clamp(newVal, min, max)
-			local percent = (val - min) / (max - min)
-			fill.Size = UDim2.new(percent, 0, 1, 0)
-			knob.Position = UDim2.new(percent, -7, 0.5, -7)
+			local pct = (val - min) / (max - min)
+			fill.Size = UDim2.new(pct, 0, 1, 0)
+			knob.Position = UDim2.new(pct, -7, 0.5, -7)
 			label.Text = string.format("%s: %.0f", cfg.Name or "Slider", val)
 		end
-		
 		UpdateVisual(val)
 		
 		local dragging = false
-		
 		local function UpdateFromMouse()
-			local mouseX = UIS:GetMouseLocation().X
-			local barX = bar.AbsolutePosition.X
-			local barW = bar.AbsoluteSize.X
-			local percent = math.clamp((mouseX - barX) / barW, 0, 1)
-			UpdateVisual(min + (max - min) * percent)
+			local mx = UIS:GetMouseLocation().X
+			local bx, bw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
+			UpdateVisual(min + (max - min) * math.clamp((mx - bx) / bw, 0, 1))
 			if cfg.Callback then pcall(cfg.Callback, val) end
 		end
 		
-		bar.MouseButton1Down:Connect(function()
-			dragging = true
-			UpdateFromMouse()
-		end)
-		
+		bar.MouseButton1Down:Connect(function() dragging = true; UpdateFromMouse() end)
 		UIS.InputChanged:Connect(function(input)
-			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-				UpdateFromMouse()
-			end
+			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then UpdateFromMouse() end
 		end)
-		
 		UIS.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 		end)
 		
-		function SliderController:SetValue(v)
-			UpdateVisual(v)
-			if cfg.Callback then pcall(cfg.Callback, val) end
-		end
-		
-		function SliderController:GetValue()
-			return val
-		end
-		
+		function SliderController:SetValue(v) UpdateVisual(v); if cfg.Callback then pcall(cfg.Callback, val) end end
+		function SliderController:GetValue() return val end
 		SliderController._box = box
 		return SliderController
 	end
@@ -449,7 +404,7 @@ function Window:CreateTab(name, icon)
 		return btn2
 	end
 	
-	-- ==================== DROPDOWN (ПОЛНОСТЬЮ ПЕРЕРАБОТАН) ====================
+	-- ==================== DROPDOWN (ПОЛНОСТЬЮ ИСПРАВЛЕН) ====================
 	function tab:CreateDropdown(cfg)
 		cfg = cfg or {}
 		local opts = cfg.Options or {}
@@ -458,160 +413,127 @@ function Window:CreateTab(name, icon)
 		
 		local DropdownController = {}
 		
-		-- Основной контейнер (НОРМАЛЬНЫЙ ZINDEX)
+		-- Кнопка
 		local box = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 34),
-			BackgroundColor3 = T.Sf,
-			Parent = content,
-			ZIndex = 1
+			Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = T.Sf, Parent = content, ZIndex = 1
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = box })
 		
-		-- Кнопка
 		local btn3 = Create("TextButton", {
-			Size = UDim2.new(1, 0, 1, 0),
-			BackgroundTransparency = 1,
-			Text = "▼  " .. cfg.Name .. ": " .. sel,
-			TextColor3 = T.Tx,
-			Font = Enum.Font.GothamSemibold,
-			TextSize = 13,
-			Parent = box,
-			ZIndex = 1
+			Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+			Text = "▼  " .. cfg.Name .. ": " .. sel, TextColor3 = T.Tx,
+			Font = Enum.Font.GothamSemibold, TextSize = 13, Parent = box, ZIndex = 1
 		})
 		
-		-- Выпадающий список (СОЗДАЁМ В САМОМ ВЕРХНЕМ КОНТЕЙНЕРЕ)
+		-- Выпадающий список (в Base, чтобы не обрезался)
 		local list = Create("Frame", {
-			Name = "DropdownList",
+			Name = "DropdownList_" .. (cfg.Name or "Unknown"):gsub("%s", "_"),
 			Size = UDim2.new(0, 0, 0, 0),
-			Position = UDim2.new(0, 0, 0, 0),
-			BackgroundColor3 = T.Sf,
-			Visible = false,
-			Parent = self.Holder, -- ВАЖНО: родитель - Holder, а не content!
-			ZIndex = 999,
-			BorderSizePixel = 0
+			BackgroundColor3 = T.Sf, Visible = false, Parent = Base,
+			ZIndex = 999, BorderSizePixel = 0
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = list })
 		Create("UIStroke", { Thickness = 1.5, Color = T.Tx, Parent = list })
 		
 		local listLayout = Create("UIListLayout", {
-			Padding = UDim.new(0, 1),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			Parent = list
+			Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list
 		})
 		
-		-- Обновление позиции списка
-		local function UpdateListPosition()
-			local boxPos = box.AbsolutePosition
-			local boxSize = box.AbsoluteSize
-			list.Position = UDim2.new(0, boxPos.X, 0, boxPos.Y + boxSize.Y + 4)
-			list.Size = UDim2.new(0, boxSize.X, 0, listLayout.AbsoluteContentSize.Y + 2)
+		-- Обновление позиции
+		local function UpdatePos()
+			local bp = box.AbsolutePosition
+			local bs = box.AbsoluteSize
+			list.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3)
+			list.Size = UDim2.new(0, bs.X, 0, listLayout.AbsoluteContentSize.Y + 2)
 		end
 		
-		local frames = {}
-		local function build()
-			for _, f in ipairs(frames) do f:Destroy() end
-			frames = {}
+		-- Построение опций
+		local optionButtons = {}
+		local function BuildOptions()
+			-- Удаляем старые
+			for _, ob in ipairs(optionButtons) do
+				pcall(function() ob:Destroy() end)
+			end
+			optionButtons = {}
+			
 			for _, o in ipairs(opts) do
 				local ob = Create("TextButton", {
 					Size = UDim2.new(1, -4, 0, 26),
 					Position = UDim2.new(0, 2, 0, 0),
-					BackgroundColor3 = T.Sf2,
-					Text = o,
-					TextColor3 = T.Tx2,
-					Font = Enum.Font.GothamSemibold,
-					TextSize = 12,
-					Parent = list,
-					ZIndex = 999
+					BackgroundColor3 = T.Sf2, Text = o, TextColor3 = T.Tx2,
+					Font = Enum.Font.GothamSemibold, TextSize = 12,
+					Parent = list, ZIndex = 999
 				})
 				Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = ob })
 				
 				ob.MouseButton1Click:Connect(function()
 					sel = o
 					btn3.Text = "▼  " .. cfg.Name .. ": " .. sel
-					open = false
-					list.Visible = false
+					DropdownController:Close()
 					if cfg.Callback then pcall(cfg.Callback, sel) end
 				end)
-				table.insert(frames, ob)
+				
+				table.insert(optionButtons, ob)
 			end
-			listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				if open then
-					UpdateListPosition()
-				end
-			end)
 		end
-		build()
+		BuildOptions()
 		
-		-- Открытие/закрытие
-		local function OpenDropdown()
-			-- Закрыть все другие дропдауны
-			for _, dd in ipairs(self.Dropdowns) do
-				if dd ~= DropdownController then
-					pcall(function() dd:Close() end)
-				end
-			end
+		-- Методы контроллера
+		function DropdownController:Open()
+			CloseAllDropdowns(DropdownController)
 			open = true
-			UpdateListPosition()
+			UpdatePos()
 			list.Visible = true
 			btn3.Text = "▲  " .. cfg.Name .. ": " .. sel
 		end
 		
-		local function CloseDropdown()
+		function DropdownController:Close()
 			open = false
 			list.Visible = false
 			btn3.Text = "▼  " .. cfg.Name .. ": " .. sel
 		end
 		
-		btn3.MouseButton1Click:Connect(function()
-			if open then
-				CloseDropdown()
-			else
-				OpenDropdown()
-			end
-		end)
-		
-		-- Закрытие по клику вне
-		UIS.InputBegan:Connect(function(input)
-			if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
-				local m = UIS:GetMouseLocation()
-				local lp = list.AbsolutePosition
-				local ls = list.AbsoluteSize
-				local bp = box.AbsolutePosition
-				local bs = box.AbsoluteSize
-				
-				-- Клик вне списка И вне кнопки
-				local outsideList = m.X < lp.X or m.X > lp.X + ls.X or m.Y < lp.Y or m.Y > lp.Y + ls.Y
-				local outsideBox = m.X < bp.X or m.X > bp.X + bs.X or m.Y < bp.Y or m.Y > bp.Y + bs.Y
-				
-				if outsideList and outsideBox then
-					CloseDropdown()
-				end
-			end
-		end)
-		
-		-- Методы контроллера
 		function DropdownController:GetValue()
 			return sel
 		end
 		
 		function DropdownController:SetOptions(newOpts)
-			opts = newOpts
-			build()
+			opts = newOpts or {}
+			BuildOptions()
 		end
 		
-		function DropdownController:Close()
-			CloseDropdown()
-		end
+		-- Клик по кнопке
+		btn3.MouseButton1Click:Connect(function()
+			if open then
+				DropdownController:Close()
+			else
+				DropdownController:Open()
+			end
+		end)
 		
-		function DropdownController:Open()
-			OpenDropdown()
-		end
+		-- Клик вне списка
+		UIS.InputBegan:Connect(function(input)
+			if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local m = UIS:GetMouseLocation()
+				local lp = list.AbsolutePosition
+				local ls = list.AbsoluteSize
+				local bp2 = box.AbsolutePosition
+				local bs2 = box.AbsoluteSize
+				
+				local outsideList = m.X < lp.X or m.X > lp.X + ls.X or m.Y < lp.Y or m.Y > lp.Y + ls.Y
+				local outsideBox = m.X < bp2.X or m.X > bp2.X + bs2.X or m.Y < bp2.Y or m.Y > bp2.Y + bs2.Y
+				
+				if outsideList and outsideBox then
+					DropdownController:Close()
+				end
+			end
+		end)
 		
 		DropdownController._box = box
 		DropdownController._list = list
 		
-		-- Добавляем в список дропдаунов окна
-		table.insert(self.Dropdowns, DropdownController)
+		-- Добавляем в глобальный список
+		table.insert(AllDropdowns, DropdownController)
 		
 		return DropdownController
 	end
@@ -620,7 +542,6 @@ function Window:CreateTab(name, icon)
 	function tab:CreateColorPicker(cfg)
 		cfg = cfg or {}
 		local col = cfg.Default or Color3.new(1, 1, 1)
-		
 		local ColorPickerController = {}
 		
 		local box = Create("Frame", {
@@ -666,16 +587,12 @@ function Window:CreateTab(name, icon)
 					if s then s:Destroy() end
 				end
 				Create("UIStroke", { Thickness = 2, Color = T.Tx, Parent = cb })
-				selFrame = cb
-				col = p
+				selFrame = cb; col = p
 				if cfg.Callback then pcall(cfg.Callback, col) end
 			end)
 		end
 		
-		function ColorPickerController:GetColor()
-			return col
-		end
-		
+		function ColorPickerController:GetColor() return col end
 		ColorPickerController._box = box
 		return ColorPickerController
 	end
@@ -683,7 +600,6 @@ function Window:CreateTab(name, icon)
 	-- ==================== TEXTBOX ====================
 	function tab:CreateTextBox(cfg)
 		cfg = cfg or {}
-		
 		local TextBoxController = {}
 		
 		local box = Create("Frame", {
@@ -705,14 +621,8 @@ function Window:CreateTab(name, icon)
 			if cfg.Callback then pcall(cfg.Callback, inp.Text, enter) end
 		end)
 		
-		function TextBoxController:GetText()
-			return inp.Text
-		end
-		
-		function TextBoxController:SetText(text)
-			inp.Text = text
-		end
-		
+		function TextBoxController:GetText() return inp.Text end
+		function TextBoxController:SetText(text) inp.Text = text end
 		TextBoxController._box = box
 		return TextBoxController
 	end
