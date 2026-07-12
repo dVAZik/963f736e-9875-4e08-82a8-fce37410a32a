@@ -1,3 +1,21 @@
+--[[
+	🌸 NekoUI Library v2.1
+	"Dark Pastel Cyberpunk" - UI Library for Roblox Executors
+	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
+	Поддержка: Delta, Codex, Synapse X, ScriptWare, Krnl
+	
+	ИСПОЛЬЗОВАНИЕ:
+	local NekoUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a/refs/heads/main/Library.lua"))()
+	
+	Создание окна:
+	local Window = NekoUI:CreateWindow({
+		Name = "My Script",
+		Theme = "Cyberpunk", -- "Cyberpunk", "Pastel", "Dark"
+		Key = Enum.KeyCode.Insert,
+		MobileButton = true
+	})
+--]]
+
 local NekoUI = {}
 local Library = {}
 Library.Windows = {}
@@ -91,12 +109,25 @@ Library.Themes = {
 		CornerRadius = 15,
 		Font = Enum.Font.GothamBold,
 		FontSecondary = Enum.Font.GothamSemibold
+	},
+	Dark = {
+		Background = Color3.fromRGB(10, 10, 10),
+		Surface = Color3.fromRGB(20, 20, 20),
+		SurfaceLight = Color3.fromRGB(30, 30, 30),
+		Accent = Color3.fromRGB(180, 180, 180),
+		AccentSecondary = Color3.fromRGB(100, 100, 100),
+		Text = Color3.fromRGB(255, 255, 255),
+		TextSecondary = Color3.fromRGB(150, 150, 150),
+		Success = Color3.fromRGB(100, 255, 100),
+		Warning = Color3.fromRGB(255, 200, 50),
+		Danger = Color3.fromRGB(255, 80, 80),
+		CornerRadius = 8,
+		Font = Enum.Font.GothamBold,
+		FontSecondary = Enum.Font.GothamSemibold
 	}
 }
 
--- =================== ОСНОВНЫЕ КЛАССЫ ===================
-
--- Класс Window
+-- =================== Класс Window ===================
 local Window = {}
 Window.__index = Window
 
@@ -118,10 +149,13 @@ function Window.new(config)
 		IgnoreGuiInset = true
 	})
 	
-	-- UI Scale для адаптивности
+	-- UI Scale для адаптивности (ИСПРАВЛЕНО - используем GuiService)
+	local guiService = game:GetService("GuiService")
+	local screenResolution = guiService:GetScreenResolution()
+	
 	self.UIScale = Utility.Create("UIScale", {
 		Parent = self.Gui,
-		Scale = math.clamp(Services.CoreGui.AbsoluteSize.X / 1920, 0.6, 1.5)
+		Scale = math.clamp(screenResolution.X / 1920, 0.6, 1.5)
 	})
 	
 	-- Главное окно
@@ -141,7 +175,7 @@ function Window.new(config)
 	})
 	
 	-- Эффект размытия
-	local blur = Utility.Create("BlurEffect", {
+	Utility.Create("BlurEffect", {
 		Size = 10,
 		Parent = self.MainFrame
 	})
@@ -173,7 +207,7 @@ function Window.new(config)
 	})
 	
 	-- Градиент заголовка
-	local gradient = Utility.Create("UIGradient", {
+	Utility.Create("UIGradient", {
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, self.Theme.Accent),
 			ColorSequenceKeypoint.new(1, self.Theme.AccentSecondary)
@@ -183,7 +217,7 @@ function Window.new(config)
 	})
 	
 	Utility.Create("TextLabel", {
-		Size = UDim2.new(1, -80, 1, 0),
+		Size = UDim2.new(1, -120, 1, 0),
 		Position = UDim2.new(0, 15, 0, 0),
 		BackgroundTransparency = 1,
 		Text = "🌸 " .. self.Name,
@@ -316,7 +350,9 @@ function Window.new(config)
 		if not gameProcessed and input.KeyCode == self.Key then
 			self.MainFrame.Visible = not self.MainFrame.Visible
 			if self.MainFrame.Visible then
-				Utility.Tween(self.MainFrame, 0.3, {Size = UDim2.new(0, 680, 0, 450)}, Enum.EasingStyle.Back)
+				Utility.Tween(self.MainFrame, 0.3, {
+					Size = UDim2.new(0, 680, 0, 450)
+				}, Enum.EasingStyle.Back)
 			end
 		end
 	end)
@@ -352,7 +388,9 @@ function Window.new(config)
 		mobileBtn.MouseButton1Click:Connect(function()
 			self.MainFrame.Visible = not self.MainFrame.Visible
 			if self.MainFrame.Visible then
-				Utility.Tween(self.MainFrame, 0.3, {Size = UDim2.new(0, 680, 0, 450)}, Enum.EasingStyle.Back)
+				Utility.Tween(self.MainFrame, 0.3, {
+					Size = UDim2.new(0, 680, 0, 450)
+				}, Enum.EasingStyle.Back)
 			end
 		end)
 	end
@@ -401,10 +439,10 @@ function Window:CreateTab(name, icon)
 	
 	tabBtn.MouseButton1Click:Connect(function()
 		-- Скрываем все вкладки
-		for _, tab in pairs(self.Tabs) do
-			tab.Content.Visible = false
-			tab.Button.BackgroundColor3 = self.Theme.SurfaceLight
-			tab.Button.TextColor3 = self.Theme.TextSecondary
+		for _, t in pairs(self.Tabs) do
+			t.Content.Visible = false
+			t.Button.BackgroundColor3 = self.Theme.SurfaceLight
+			t.Button.TextColor3 = self.Theme.TextSecondary
 		end
 		
 		-- Показываем текущую
@@ -502,7 +540,6 @@ function Window:CreateTab(name, icon)
 		})
 		
 		local function updateVisual(state)
-			local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad)
 			Utility.Tween(switch, 0.25, {
 				BackgroundColor3 = state and self.Window.Theme.Success or self.Window.Theme.Surface
 			})
@@ -520,7 +557,7 @@ function Window:CreateTab(name, icon)
 		end)
 		
 		-- Setter для внешнего управления
-		toggle.SetState = function(self, state)
+		toggle.SetState = function(_, state)
 			enabled = state
 			updateVisual(state)
 		end
@@ -640,7 +677,7 @@ function Window:CreateTab(name, icon)
 			end
 		end)
 		
-		slider.SetValue = function(self, newValue)
+		slider.SetValue = function(_, newValue)
 			updateValue(newValue)
 		end
 		
@@ -735,7 +772,13 @@ function Window:CreateTab(name, icon)
 		local optionFrames = {}
 		
 		local function createOptions()
-			for i, opt in ipairs(options) do
+			-- Очищаем старые опции
+			for _, frame in ipairs(optionFrames) do
+				frame:Destroy()
+			end
+			optionFrames = {}
+			
+			for _, opt in ipairs(options) do
 				local optBtn = Utility.Create("TextButton", {
 					Size = UDim2.new(1, -4, 0, 28),
 					Position = UDim2.new(0, 2, 0, 0),
@@ -784,11 +827,7 @@ function Window:CreateTab(name, icon)
 			return selected
 		end
 		
-		dropdown.SetOptions = function(self, newOptions)
-			for _, frame in ipairs(optionFrames) do
-				frame:Destroy()
-			end
-			optionFrames = {}
+		dropdown.SetOptions = function(_, newOptions)
 			options = newOptions
 			createOptions()
 		end
@@ -839,7 +878,7 @@ function Window:CreateTab(name, icon)
 			Parent = picker
 		})
 		
-		local presetLayout = Utility.Create("UIListLayout", {
+		Utility.Create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
 			Padding = UDim.new(0, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
@@ -848,7 +887,7 @@ function Window:CreateTab(name, icon)
 		
 		local selectedFrame = nil
 		
-		for i, preset in ipairs(presets) do
+		for _, preset in ipairs(presets) do
 			local colorBtn = Utility.Create("TextButton", {
 				Size = UDim2.new(0, 26, 0, 26),
 				BackgroundColor3 = preset,
@@ -856,7 +895,7 @@ function Window:CreateTab(name, icon)
 				Parent = presetFrame
 			})
 			
-			Utility.Create("UICorner", {
+				Utility.Create("UICorner", {
 				CornerRadius = UDim.new(1, 0),
 				Parent = colorBtn
 			})
@@ -876,7 +915,7 @@ function Window:CreateTab(name, icon)
 					if oldStroke then oldStroke:Destroy() end
 				end
 				
-				local stroke = Utility.Create("UIStroke", {
+				Utility.Create("UIStroke", {
 					Thickness = 2,
 					Color = self.Window.Theme.Text,
 					Parent = colorBtn
@@ -940,7 +979,7 @@ function Window:CreateTab(name, icon)
 			return input.Text
 		end
 		
-		textBox.SetText = function(self, text)
+		textBox.SetText = function(_, text)
 			input.Text = text
 		end
 		
@@ -948,6 +987,14 @@ function Window:CreateTab(name, icon)
 	end
 	
 	self.Tabs[#self.Tabs + 1] = Tab
+	
+	-- Автоматически активируем первую вкладку
+	if #self.Tabs == 1 then
+		tabContent.Visible = true
+		tabBtn.BackgroundColor3 = self.Theme.Accent
+		tabBtn.TextColor3 = self.Theme.Text
+		self.CurrentTab = Tab
+	end
 	
 	return Tab
 end
@@ -962,7 +1009,11 @@ end
 -- Утилиты библиотеки
 function NekoUI:SetTheme(themeName)
 	if Library.Themes[themeName] then
-		-- Обновление темы для всех окон
+		for _, window in ipairs(Library.Windows) do
+			window.Theme = Library.Themes[themeName]
+			-- Обновление цветов окна
+			window.MainFrame.BackgroundColor3 = window.Theme.Background
+		end
 	end
 end
 
