@@ -13,7 +13,7 @@
 ## 📦 Установка
 
 ```lua
-local NekoUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a/refs/heads/main/Library.lua"))()
+local NekoUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a/refs/heads/main/Library"))()
 ```
 
 ---
