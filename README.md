@@ -524,10 +524,6 @@ SettingsTab:CreateTextBox({
 
 ---
 
-## 📄 Лицензия
-
-MIT License - свободное использование с указанием авторства
-
 ---
 
 **Сделано с 💖 для комьюнити Roblox Exploiting**
