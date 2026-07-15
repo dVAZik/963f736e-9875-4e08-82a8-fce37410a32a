@@ -1,12 +1,3 @@
---[[
-	🌸 NekoUI Library v4.0 - Elegant Module Style
-	"Dark Minimal" - UI Library for Roblox Executors
-	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
-	
-	Стиль: модульный, как в примере
-	Методы: :Category(), :Toggle(), :Slider(), :Button(), :Dropdown(), :Color(), :Input()
---]]
-
 local ModMenu = {}
 ModMenu.__index = ModMenu
 
@@ -53,6 +44,11 @@ local function Tween(obj, t, props)
 	tw:Play()
 end
 
+-- Определение мобильного устройства
+local function IsMobile()
+	return UIS.TouchEnabled and not UIS.KeyboardEnabled and not UIS.MouseEnabled
+end
+
 -- ==================== СОЗДАНИЕ МЕНЮ ====================
 function ModMenu.new(name, cfg)
 	local self = setmetatable({}, ModMenu)
@@ -73,6 +69,7 @@ function ModMenu:Build(name)
 		Name = self.Name,
 		IgnoreGuiInset = true,
 		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 	})
 	
@@ -85,6 +82,7 @@ function ModMenu:Build(name)
 		Position = UDim2.new(0.5, -325, 0.5, -220),
 		BackgroundColor3 = T.Bg,
 		BorderSizePixel = 0,
+		Visible = IsMobile() and false or true, -- На ПК видно сразу, на мобильных скрыто
 		Parent = sg
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 10), Parent = main })
@@ -123,7 +121,12 @@ function ModMenu:Build(name)
 		Parent = titleBar
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = closeBtn })
-	closeBtn.MouseButton1Click:Connect(function() sg:Destroy() end)
+	closeBtn.MouseButton1Click:Connect(function()
+		main.Visible = false
+		if self._mobileBtn then
+			self._mobileBtn.Visible = true
+		end
+	end)
 	
 	-- Drag
 	local drag = false
@@ -142,6 +145,16 @@ function ModMenu:Build(name)
 		if drag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local d = input.Position - start
 			main.Position = UDim2.new(pos.X.Scale, pos.X.Offset + d.X, pos.Y.Scale, pos.Y.Offset + d.Y)
+		end
+	end)
+	
+	-- Горячая клавиша Insert (ПК)
+	UIS.InputBegan:Connect(function(input, gpe)
+		if not gpe and input.KeyCode == Enum.KeyCode.Insert then
+			main.Visible = not main.Visible
+			if self._mobileBtn then
+				self._mobileBtn.Visible = not main.Visible
+			end
 		end
 	end)
 	
@@ -192,7 +205,53 @@ function ModMenu:Build(name)
 		Parent = funcScroll
 	})
 	
+	-- ==================== МОБИЛЬНАЯ КНОПКА ====================
+	local mobileBtn = Create("TextButton", {
+		Size = UDim2.new(0, 52, 0, 52),
+		Position = UDim2.new(1, -68, 1, -68),
+		BackgroundColor3 = T.Bg,
+		Text = "☰",
+		TextColor3 = T.Tx,
+		Font = Enum.Font.GothamBold,
+		TextSize = 24,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Parent = sg,
+		ZIndex = 100,
+		Visible = IsMobile() -- Видна только на мобильных
+	})
+	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = mobileBtn })
+	Create("UIStroke", { Thickness = 2, Color = T.Tx2, Parent = mobileBtn })
+	
+	-- Drag мобильной кнопки
+	local mbDrag = false
+	local mbStart, mbPos
+	mobileBtn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			mbDrag = true
+			mbStart = input.Position
+			mbPos = mobileBtn.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then mbDrag = false end
+			end)
+		end
+	end)
+	UIS.InputChanged:Connect(function(input)
+		if mbDrag and input.UserInputType == Enum.UserInputType.Touch then
+			local d = input.Position - mbStart
+			mobileBtn.Position = UDim2.new(mbPos.X.Scale, mbPos.X.Offset + d.X, mbPos.Y.Scale, mbPos.Y.Offset + d.Y)
+		end
+	end)
+	
+	-- Клик по мобильной кнопке
+	mobileBtn.MouseButton1Click:Connect(function()
+		main.Visible = not main.Visible
+		mobileBtn.Visible = not main.Visible
+	end)
+	
+	-- Сохраняем ссылки
 	self._main = main
+	self._sg = sg
+	self._mobileBtn = mobileBtn
 	self._catScroll = catScroll
 	self._funcScroll = funcScroll
 	self._catButtons = {}
@@ -212,7 +271,6 @@ function ModMenu:Category(name)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = btn })
 	
-	-- Фрейм для функций этой категории
 	local frame = Create("Frame", {
 		Size = UDim2.new(1, 0, 0, 0),
 		BackgroundTransparency = 1,
@@ -311,11 +369,12 @@ function ModMenu:Toggle(name, default, callback)
 	return {
 		On = function() on = true; update(true); if callback then pcall(callback, true) end end,
 		Off = function() on = false; update(false); if callback then pcall(callback, false) end end,
-		Toggle = function() on = not on; update(on); if callback then pcall(callback, on) end end
+		Toggle = function() on = not on; update(on); if callback then pcall(callback, on) end end,
+		State = function() return on end
 	}
 end
 
--- ==================== SLIDER (ПОЛНОСТЬЮ ПЕРЕРАБОТАН) ====================
+-- ==================== SLIDER ====================
 function ModMenu:Slider(name, min, max, default, callback)
 	min = min or 0
 	max = max or 100
@@ -329,7 +388,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
 	
-	-- Название + значение
 	local label = Create("TextLabel", {
 		Size = UDim2.new(1, -24, 0, 20),
 		Position = UDim2.new(0, 14, 0, 4),
@@ -342,7 +400,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 		Parent = box
 	})
 	
-	-- Полоса
 	local bar = Create("TextButton", {
 		Size = UDim2.new(1, -28, 0, 6),
 		Position = UDim2.new(0, 14, 0, 30),
@@ -354,7 +411,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
 	
-	-- Заполнение
 	local fill = Create("Frame", {
 		Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
 		BackgroundColor3 = T.On,
@@ -363,7 +419,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 	
-	-- Кружок
 	local knob = Create("Frame", {
 		Size = UDim2.new(0, 14, 0, 14),
 		Position = UDim2.new((default - min) / (max - min), -7, 0.5, -7),
@@ -373,7 +428,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 	})
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
 	
-	-- Обновление визуала
 	local function updateVisual(v)
 		val = math.clamp(v, min, max)
 		local pct = (val - min) / (max - min)
@@ -382,7 +436,6 @@ function ModMenu:Slider(name, min, max, default, callback)
 		label.Text = name .. ": " .. math.floor(val)
 	end
 	
-	-- Перетаскивание
 	local dragging = false
 	
 	bar.MouseButton1Down:Connect(function()
@@ -412,12 +465,8 @@ function ModMenu:Slider(name, min, max, default, callback)
 		end
 	end)
 	
-	-- Контроллер
 	return {
-		Set = function(v)
-			updateVisual(v)
-			if callback then pcall(callback, val) end
-		end,
+		Set = function(v) updateVisual(v); if callback then pcall(callback, val) end end,
 		Get = function() return val end,
 		Add = function(v) updateVisual(val + v); if callback then pcall(callback, val) end end,
 		Sub = function(v) updateVisual(val - v); if callback then pcall(callback, val) end end
@@ -473,7 +522,6 @@ function ModMenu:Dropdown(name, options, default, callback)
 		ZIndex = 1
 	})
 	
-	-- Выпадающий список
 	local list = Create("Frame", {
 		Size = UDim2.new(0, 0, 0, 0),
 		BackgroundColor3 = T.Sf,
@@ -504,7 +552,6 @@ function ModMenu:Dropdown(name, options, default, callback)
 		Parent = listScroll
 	})
 	
-	-- Построение опций
 	local function buildOpts()
 		listScroll:ClearAllChildren()
 		listLayout = Create("UIListLayout", {
