@@ -1,18 +1,23 @@
+--[[
+	🌸 NekoUI Library v4.2 - с поддержкой KeyBind
+	"Dark Minimal" - UI Library for Roblox Executors
+	GitHub: github.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a
+	
+	ДОБАВЛЕНО:
+	- menu:KeyBind(name, key, callback) — привязка клавиши
+	- menu:KeyBind возвращает { SetKey, GetKey }
+--]]
+
 local ModMenu = {}
 ModMenu.__index = ModMenu
 
--- Сервисы
 local UIS = game:GetService("UserInputService")
 local TS = game:GetService("TweenService")
 local GS = game:GetService("GuiService")
 local HS = game:GetService("HttpService")
 
--- Генератор ID
-local function ID()
-	return HS:GenerateGUID(false):sub(1, 8)
-end
+local function ID() return HS:GenerateGUID(false):sub(1, 8) end
 
--- Тема
 local T = {
 	Bg = Color3.fromRGB(12, 12, 12),
 	Sf = Color3.fromRGB(24, 24, 24),
@@ -24,27 +29,21 @@ local T = {
 	Off = Color3.fromRGB(60, 60, 60)
 }
 
--- Утилита создания
 local function Create(cls, props)
 	local obj = Instance.new(cls)
 	for k, v in pairs(props or {}) do
-		if k == "Parent" then
-			pcall(function() obj.Parent = v end)
-		else
-			pcall(function() obj[k] = v end)
-		end
+		if k == "Parent" then pcall(function() obj.Parent = v end)
+		else pcall(function() obj[k] = v end) end
 	end
 	return obj
 end
 
--- Твин
 local function Tween(obj, t, props)
 	local ti = TweenInfo.new(t or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local tw = TS:Create(obj, ti, props)
 	tw:Play()
 end
 
--- Определение мобильного устройства
 local function IsMobile()
 	return UIS.TouchEnabled and not UIS.KeyboardEnabled and not UIS.MouseEnabled
 end
@@ -52,23 +51,16 @@ end
 -- ==================== СОЗДАНИЕ МЕНЮ ====================
 function ModMenu.new(name, cfg)
 	local self = setmetatable({}, ModMenu)
-	
 	self.Name = name .. "_" .. ID()
 	self.Config = cfg or {}
-	self.Categories = {}
-	self.Functions = {}
-	
+	self._binds = {} -- таблица биндов
 	self:Build(name)
-	
 	return self
 end
 
--- ==================== ПОСТРОЕНИЕ GUI ====================
 function ModMenu:Build(name)
 	local sg = Create("ScreenGui", {
-		Name = self.Name,
-		IgnoreGuiInset = true,
-		ResetOnSpawn = false,
+		Name = self.Name, IgnoreGuiInset = true, ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 	})
@@ -76,69 +68,40 @@ function ModMenu:Build(name)
 	local scale = math.clamp(GS:GetScreenResolution().X / 1920, 0.6, 1.5)
 	Create("UIScale", { Parent = sg, Scale = scale })
 	
-	-- Главный контейнер
 	local main = Create("Frame", {
-		Size = UDim2.new(0, 650, 0, 440),
-		Position = UDim2.new(0.5, -325, 0.5, -220),
-		BackgroundColor3 = T.Bg,
-		BorderSizePixel = 0,
-		Visible = IsMobile() and false or true, -- На ПК видно сразу, на мобильных скрыто
-		Parent = sg
+		Size = UDim2.new(0, 650, 0, 440), Position = UDim2.new(0.5, -325, 0.5, -220),
+		BackgroundColor3 = T.Bg, BorderSizePixel = 0,
+		Visible = IsMobile() and false or true, Parent = sg
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 10), Parent = main })
 	Create("UIStroke", { Thickness = 1, Color = T.Sf2, Parent = main })
 	
-	-- TitleBar
 	local titleBar = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 44),
-		BackgroundColor3 = T.Sf,
-		BorderSizePixel = 0,
-		Parent = main
+		Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = T.Sf, BorderSizePixel = 0, Parent = main
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 10), Parent = titleBar })
 	
 	Create("TextLabel", {
-		Size = UDim2.new(1, -90, 1, 0),
-		Position = UDim2.new(0, 16, 0, 0),
-		BackgroundTransparency = 1,
-		Text = name,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamBold,
-		TextSize = 16,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		Size = UDim2.new(1, -90, 1, 0), Position = UDim2.new(0, 16, 0, 0),
+		BackgroundTransparency = 1, Text = name, TextColor3 = T.Tx,
+		Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = titleBar
 	})
 	
-	-- Кнопка закрытия
 	local closeBtn = Create("TextButton", {
-		Size = UDim2.new(0, 30, 0, 30),
-		Position = UDim2.new(1, -36, 0, 7),
-		BackgroundColor3 = T.Sf2,
-		Text = "✕",
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamBold,
-		TextSize = 15,
-		Parent = titleBar
+		Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -36, 0, 7),
+		BackgroundColor3 = T.Sf2, Text = "✕", TextColor3 = T.Tx,
+		Font = Enum.Font.GothamBold, TextSize = 15, Parent = titleBar
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = closeBtn })
-	closeBtn.MouseButton1Click:Connect(function()
-		main.Visible = false
-		if self._mobileBtn then
-			self._mobileBtn.Visible = true
-		end
-	end)
+	closeBtn.MouseButton1Click:Connect(function() main.Visible = false; if self._mobileBtn then self._mobileBtn.Visible = true end end)
 	
 	-- Drag
-	local drag = false
-	local start, pos
+	local drag = false; local start, pos
 	titleBar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			drag = true
-			start = input.Position
-			pos = main.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then drag = false end
-			end)
+			drag = true; start = input.Position; pos = main.Position
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then drag = false end end)
 		end
 	end)
 	UIS.InputChanged:Connect(function(input)
@@ -148,91 +111,55 @@ function ModMenu:Build(name)
 		end
 	end)
 	
-	-- Горячая клавиша Insert (ПК)
+	-- Insert key
 	UIS.InputBegan:Connect(function(input, gpe)
 		if not gpe and input.KeyCode == Enum.KeyCode.Insert then
 			main.Visible = not main.Visible
-			if self._mobileBtn then
-				self._mobileBtn.Visible = not main.Visible
-			end
+			if self._mobileBtn then self._mobileBtn.Visible = not main.Visible end
 		end
 	end)
 	
-	-- Панель категорий
+	-- Cat bar
 	local catBar = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 38),
-		Position = UDim2.new(0, 0, 0, 44),
-		BackgroundColor3 = T.Sf,
-		BorderSizePixel = 0,
-		Parent = main
+		Size = UDim2.new(1, 0, 0, 38), Position = UDim2.new(0, 0, 0, 44),
+		BackgroundColor3 = T.Sf, BorderSizePixel = 0, Parent = main
 	})
-	
 	local catScroll = Create("ScrollingFrame", {
-		Size = UDim2.new(1, -8, 1, 0),
-		Position = UDim2.new(0, 4, 0, 4),
-		BackgroundTransparency = 1,
-		ScrollBarThickness = 0,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.X,
-		ScrollingDirection = Enum.ScrollingDirection.X,
-		Parent = catBar
+		Size = UDim2.new(1, -8, 1, 0), Position = UDim2.new(0, 4, 0, 4),
+		BackgroundTransparency = 1, ScrollBarThickness = 0,
+		CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X,
+		ScrollingDirection = Enum.ScrollingDirection.X, Parent = catBar
 	})
-	
 	Create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		Padding = UDim.new(0, 4),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
+		FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center,
 		Parent = catScroll
 	})
 	
-	-- Панель функций
+	-- Func scroll
 	local funcScroll = Create("ScrollingFrame", {
-		Size = UDim2.new(1, -8, 1, -90),
-		Position = UDim2.new(0, 4, 0, 86),
-		BackgroundTransparency = 1,
-		ScrollBarThickness = 3,
-		ScrollBarImageColor3 = T.Tx2,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		Parent = main
+		Size = UDim2.new(1, -8, 1, -90), Position = UDim2.new(0, 4, 0, 86),
+		BackgroundTransparency = 1, ScrollBarThickness = 3, ScrollBarImageColor3 = T.Tx2,
+		CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y, Parent = main
 	})
+	Create("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder, Parent = funcScroll })
 	
-	Create("UIListLayout", {
-		Padding = UDim.new(0, 5),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = funcScroll
-	})
-	
-	-- ==================== МОБИЛЬНАЯ КНОПКА ====================
+	-- Mobile btn
 	local mobileBtn = Create("TextButton", {
-		Size = UDim2.new(0, 52, 0, 52),
-		Position = UDim2.new(1, -68, 1, -68),
-		BackgroundColor3 = T.Bg,
-		Text = "☰",
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamBold,
-		TextSize = 24,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Parent = sg,
-		ZIndex = 100,
-		Visible = IsMobile() -- Видна только на мобильных
+		Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(1, -68, 1, -68),
+		BackgroundColor3 = T.Bg, Text = "☰", TextColor3 = T.Tx,
+		Font = Enum.Font.GothamBold, TextSize = 24, AnchorPoint = Vector2.new(0.5, 0.5),
+		Parent = sg, ZIndex = 100, Visible = IsMobile()
 	})
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = mobileBtn })
 	Create("UIStroke", { Thickness = 2, Color = T.Tx2, Parent = mobileBtn })
 	
-	-- Drag мобильной кнопки
-	local mbDrag = false
-	local mbStart, mbPos
+	local mbDrag = false; local mbStart, mbPos
 	mobileBtn.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.Touch then
-			mbDrag = true
-			mbStart = input.Position
-			mbPos = mobileBtn.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then mbDrag = false end
-			end)
+			mbDrag = true; mbStart = input.Position; mbPos = mobileBtn.Position
+			input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then mbDrag = false end end)
 		end
 	end)
 	UIS.InputChanged:Connect(function(input)
@@ -241,14 +168,8 @@ function ModMenu:Build(name)
 			mobileBtn.Position = UDim2.new(mbPos.X.Scale, mbPos.X.Offset + d.X, mbPos.Y.Scale, mbPos.Y.Offset + d.Y)
 		end
 	end)
+	mobileBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible; mobileBtn.Visible = not main.Visible end)
 	
-	-- Клик по мобильной кнопке
-	mobileBtn.MouseButton1Click:Connect(function()
-		main.Visible = not main.Visible
-		mobileBtn.Visible = not main.Visible
-	end)
-	
-	-- Сохраняем ссылки
 	self._main = main
 	self._sg = sg
 	self._mobileBtn = mobileBtn
@@ -261,54 +182,27 @@ end
 -- ==================== CATEGORY ====================
 function ModMenu:Category(name)
 	local btn = Create("TextButton", {
-		Size = UDim2.new(0, 100, 0, 28),
-		BackgroundColor3 = T.Sf2,
-		Text = name,
-		TextColor3 = T.Tx2,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 12,
-		Parent = self._catScroll
+		Size = UDim2.new(0, 100, 0, 28), BackgroundColor3 = T.Sf2, Text = name,
+		TextColor3 = T.Tx2, Font = Enum.Font.GothamSemibold, TextSize = 12, Parent = self._catScroll
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = btn })
 	
 	local frame = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 0),
-		BackgroundTransparency = 1,
-		Visible = false,
-		Parent = self._funcScroll,
-		AutomaticSize = Enum.AutomaticSize.Y
+		Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, Visible = false,
+		Parent = self._funcScroll, AutomaticSize = Enum.AutomaticSize.Y
 	})
-	
-	Create("UIListLayout", {
-		Padding = UDim.new(0, 5),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = frame
-	})
+	Create("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder, Parent = frame })
 	
 	btn.MouseButton1Click:Connect(function()
-		for _, b in ipairs(self._catButtons) do
-			b.BackgroundColor3 = T.Sf2
-			b.TextColor3 = T.Tx2
-		end
-		for _, f in ipairs(self._funcFrames) do
-			f.Visible = false
-		end
-		btn.BackgroundColor3 = T.Ac
-		btn.TextColor3 = T.Bg
-		frame.Visible = true
-		self._current = frame
+		for _, b in ipairs(self._catButtons) do b.BackgroundColor3 = T.Sf2; b.TextColor3 = T.Tx2 end
+		for _, f in ipairs(self._funcFrames) do f.Visible = false end
+		btn.BackgroundColor3 = T.Ac; btn.TextColor3 = T.Bg; frame.Visible = true; self._current = frame
 	end)
 	
 	table.insert(self._catButtons, btn)
 	table.insert(self._funcFrames, frame)
 	
-	if #self._catButtons == 1 then
-		btn.BackgroundColor3 = T.Ac
-		btn.TextColor3 = T.Bg
-		frame.Visible = true
-		self._current = frame
-	end
-	
+	if #self._catButtons == 1 then btn.BackgroundColor3 = T.Ac; btn.TextColor3 = T.Bg; frame.Visible = true; self._current = frame end
 	self._activeFrame = frame
 	return self
 end
@@ -316,433 +210,174 @@ end
 -- ==================== TOGGLE ====================
 function ModMenu:Toggle(name, default, callback)
 	default = default or false
-	
-	local box = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 40),
-		BackgroundColor3 = T.Sf,
-		Parent = self._activeFrame or self._funcScroll
-	})
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
-	
-	Create("TextLabel", {
-		Size = UDim2.new(0.65, 0, 1, 0),
-		Position = UDim2.new(0, 14, 0, 0),
-		BackgroundTransparency = 1,
-		Text = name,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = box
-	})
-	
-	local sw = Create("TextButton", {
-		Size = UDim2.new(0, 44, 0, 22),
-		Position = UDim2.new(1, -56, 0.5, -11),
-		BackgroundColor3 = default and T.On or T.Off,
-		Text = "",
-		BorderSizePixel = 0,
-		Parent = box
-	})
+	Create("TextLabel", { Size = UDim2.new(0.65, 0, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	local sw = Create("TextButton", { Size = UDim2.new(0, 44, 0, 22), Position = UDim2.new(1, -56, 0.5, -11), BackgroundColor3 = default and T.On or T.Off, Text = "", BorderSizePixel = 0, Parent = box })
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = sw })
-	
-	local knob = Create("Frame", {
-		Size = UDim2.new(0, 16, 0, 16),
-		Position = UDim2.new(default and 1 or 0, default and -19 or 3, 0.5, -8),
-		BackgroundColor3 = T.Bg,
-		Parent = sw
-	})
+	local knob = Create("Frame", { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(default and 1 or 0, default and -19 or 3, 0.5, -8), BackgroundColor3 = T.Bg, Parent = sw })
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
-	
 	local on = default
-	local function update(state)
-		Tween(sw, 0.2, { BackgroundColor3 = state and T.On or T.Off })
-		Tween(knob, 0.2, { Position = UDim2.new(state and 1 or 0, state and -19 or 3, 0.5, -8) })
-	end
-	
-	sw.MouseButton1Click:Connect(function()
-		on = not on
-		update(on)
-		if callback then pcall(callback, on) end
-	end)
-	
-	return {
-		On = function() on = true; update(true); if callback then pcall(callback, true) end end,
-		Off = function() on = false; update(false); if callback then pcall(callback, false) end end,
-		Toggle = function() on = not on; update(on); if callback then pcall(callback, on) end end,
-		State = function() return on end
-	}
+	local function update(s) Tween(sw, 0.2, { BackgroundColor3 = s and T.On or T.Off }); Tween(knob, 0.2, { Position = UDim2.new(s and 1 or 0, s and -19 or 3, 0.5, -8) }) end
+	sw.MouseButton1Click:Connect(function() on = not on; update(on); if callback then pcall(callback, on) end end)
+	return { On = function() on = true; update(true); if callback then pcall(callback, true) end end, Off = function() on = false; update(false); if callback then pcall(callback, false) end end, Toggle = function() on = not on; update(on); if callback then pcall(callback, on) end end, State = function() return on end }
 end
 
 -- ==================== SLIDER ====================
 function ModMenu:Slider(name, min, max, default, callback)
-	min = min or 0
-	max = max or 100
-	default = default or min
-	local val = default
-	
-	local box = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 56),
-		BackgroundColor3 = T.Sf,
-		Parent = self._activeFrame or self._funcScroll
-	})
+	min = min or 0; max = max or 100; default = default or min; local val = default
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 56), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
-	
-	local label = Create("TextLabel", {
-		Size = UDim2.new(1, -24, 0, 20),
-		Position = UDim2.new(0, 14, 0, 4),
-		BackgroundTransparency = 1,
-		Text = name .. ": " .. default,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = box
-	})
-	
-	local bar = Create("TextButton", {
-		Size = UDim2.new(1, -28, 0, 6),
-		Position = UDim2.new(0, 14, 0, 30),
-		BackgroundColor3 = T.Off,
-		Text = "",
-		BorderSizePixel = 0,
-		AutoButtonColor = false,
-		Parent = box
-	})
+	local label = Create("TextLabel", { Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 14, 0, 4), BackgroundTransparency = 1, Text = name .. ": " .. default, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	local bar = Create("TextButton", { Size = UDim2.new(1, -28, 0, 6), Position = UDim2.new(0, 14, 0, 30), BackgroundColor3 = T.Off, Text = "", BorderSizePixel = 0, AutoButtonColor = false, Parent = box })
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
-	
-	local fill = Create("Frame", {
-		Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
-		BackgroundColor3 = T.On,
-		BorderSizePixel = 0,
-		Parent = bar
-	})
+	local fill = Create("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0), BackgroundColor3 = T.On, BorderSizePixel = 0, Parent = bar })
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
-	
-	local knob = Create("Frame", {
-		Size = UDim2.new(0, 14, 0, 14),
-		Position = UDim2.new((default - min) / (max - min), -7, 0.5, -7),
-		BackgroundColor3 = T.On,
-		BorderSizePixel = 0,
-		Parent = bar
-	})
+	local knob = Create("Frame", { Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new((default - min) / (max - min), -7, 0.5, -7), BackgroundColor3 = T.On, BorderSizePixel = 0, Parent = bar })
 	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
-	
-	local function updateVisual(v)
-		val = math.clamp(v, min, max)
-		local pct = (val - min) / (max - min)
-		fill.Size = UDim2.new(pct, 0, 1, 0)
-		knob.Position = UDim2.new(pct, -7, 0.5, -7)
-		label.Text = name .. ": " .. math.floor(val)
-	end
-	
+	local function updateVisual(v) val = math.clamp(v, min, max); local pct = (val - min) / (max - min); fill.Size = UDim2.new(pct, 0, 1, 0); knob.Position = UDim2.new(pct, -7, 0.5, -7); label.Text = name .. ": " .. math.floor(val) end
 	local dragging = false
-	
-	bar.MouseButton1Down:Connect(function()
-		dragging = true
-		local mx = UIS:GetMouseLocation().X
-		local bx = bar.AbsolutePosition.X
-		local bw = bar.AbsoluteSize.X
-		local pct = math.clamp((mx - bx) / bw, 0, 1)
-		updateVisual(min + (max - min) * pct)
-		if callback then pcall(callback, val) end
-	end)
-	
-	UIS.InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local mx = UIS:GetMouseLocation().X
-			local bx = bar.AbsolutePosition.X
-			local bw = bar.AbsoluteSize.X
-			local pct = math.clamp((mx - bx) / bw, 0, 1)
-			updateVisual(min + (max - min) * pct)
-			if callback then pcall(callback, val) end
-		end
-	end)
-	
-	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-	
-	return {
-		Set = function(v) updateVisual(v); if callback then pcall(callback, val) end end,
-		Get = function() return val end,
-		Add = function(v) updateVisual(val + v); if callback then pcall(callback, val) end end,
-		Sub = function(v) updateVisual(val - v); if callback then pcall(callback, val) end end
-	}
+	bar.MouseButton1Down:Connect(function() dragging = true; local mx = UIS:GetMouseLocation().X; local bx = bar.AbsolutePosition.X; local bw = bar.AbsoluteSize.X; local pct = math.clamp((mx - bx) / bw, 0, 1); updateVisual(min + (max - min) * pct); if callback then pcall(callback, val) end end)
+	UIS.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then local mx = UIS:GetMouseLocation().X; local bx = bar.AbsolutePosition.X; local bw = bar.AbsoluteSize.X; local pct = math.clamp((mx - bx) / bw, 0, 1); updateVisual(min + (max - min) * pct); if callback then pcall(callback, val) end end end)
+	UIS.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+	return { Set = function(v) updateVisual(v); if callback then pcall(callback, val) end end, Get = function() return val end, Add = function(v) updateVisual(val + v); if callback then pcall(callback, val) end end, Sub = function(v) updateVisual(val - v); if callback then pcall(callback, val) end end }
 end
 
 -- ==================== BUTTON ====================
 function ModMenu:Button(name, callback)
-	local btn = Create("TextButton", {
-		Size = UDim2.new(1, 0, 0, 34),
-		BackgroundColor3 = T.Sf,
-		Text = name,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		Parent = self._activeFrame or self._funcScroll
-	})
+	local btn = Create("TextButton", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = T.Sf, Text = name, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 13, Parent = self._activeFrame or self._funcScroll })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = btn })
-	
-	btn.MouseButton1Click:Connect(function()
-		Tween(btn, 0.1, { BackgroundColor3 = T.Sf2 })
-		task.wait(0.1)
-		Tween(btn, 0.1, { BackgroundColor3 = T.Sf })
-		if callback then pcall(callback) end
-	end)
-	
+	btn.MouseButton1Click:Connect(function() Tween(btn, 0.1, { BackgroundColor3 = T.Sf2 }); task.wait(0.1); Tween(btn, 0.1, { BackgroundColor3 = T.Sf }); if callback then pcall(callback) end end)
 	return { Click = function() if callback then pcall(callback) end end }
 end
 
 -- ==================== DROPDOWN ====================
 function ModMenu:Dropdown(name, options, default, callback)
-	options = options or {}
-	default = default or options[1] or ""
-	local sel = default
-	local open = false
-	
-	local box = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 34),
-		BackgroundColor3 = T.Sf,
-		Parent = self._activeFrame or self._funcScroll,
-		ZIndex = 1
-	})
+	options = options or {}; default = default or options[1] or ""; local sel = default; local open = false
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll, ZIndex = 1 })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
-	
-	local btn = Create("TextButton", {
-		Size = UDim2.new(1, 0, 1, 0),
-		BackgroundTransparency = 1,
-		Text = "▼  " .. name .. ": " .. sel,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		Parent = box,
-		ZIndex = 1
-	})
-	
-	local list = Create("Frame", {
-		Size = UDim2.new(0, 0, 0, 0),
-		BackgroundColor3 = T.Sf,
-		Visible = false,
-		Parent = self._main,
-		ZIndex = 999,
-		BorderSizePixel = 0
-	})
-	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = list })
-	Create("UIStroke", { Thickness = 1.5, Color = T.On, Parent = list })
-	
-	local listScroll = Create("ScrollingFrame", {
-		Size = UDim2.new(1, -4, 1, -4),
-		Position = UDim2.new(0, 2, 0, 2),
-		BackgroundTransparency = 1,
-		ScrollBarThickness = 3,
-		ScrollBarImageColor3 = T.Tx2,
-		CanvasSize = UDim2.new(0, 0, 0, 0),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		Parent = list,
-		ZIndex = 999
-	})
-	
-	local listLayout = Create("UIListLayout", {
-		Padding = UDim.new(0, 1),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = listScroll
-	})
-	
+	local btn = Create("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "▼  " .. name .. ": " .. sel, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 13, Parent = box, ZIndex = 1 })
+	local list = Create("Frame", { Size = UDim2.new(0, 0, 0, 0), BackgroundColor3 = T.Sf, Visible = false, Parent = self._main, ZIndex = 999, BorderSizePixel = 0 })
+	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = list }); Create("UIStroke", { Thickness = 1.5, Color = T.On, Parent = list })
+	local listScroll = Create("ScrollingFrame", { Size = UDim2.new(1, -4, 1, -4), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1, ScrollBarThickness = 3, ScrollBarImageColor3 = T.Tx2, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, Parent = list, ZIndex = 999 })
+	local listLayout = Create("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listScroll })
 	local function buildOpts()
-		listScroll:ClearAllChildren()
-		listLayout = Create("UIListLayout", {
-			Padding = UDim.new(0, 1),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			Parent = listScroll
-		})
-		
+		listScroll:ClearAllChildren(); listLayout = Create("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listScroll })
 		for _, o in ipairs(options) do
-			local ob = Create("TextButton", {
-				Size = UDim2.new(1, -4, 0, 26),
-				BackgroundColor3 = T.Sf2,
-				Text = o,
-				TextColor3 = T.Tx2,
-				Font = Enum.Font.GothamSemibold,
-				TextSize = 12,
-				Parent = listScroll,
-				ZIndex = 999
-			})
+			local ob = Create("TextButton", { Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = T.Sf2, Text = o, TextColor3 = T.Tx2, Font = Enum.Font.GothamSemibold, TextSize = 12, Parent = listScroll, ZIndex = 999 })
 			Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = ob })
-			
-			ob.MouseButton1Click:Connect(function()
-				sel = o
-				btn.Text = "▼  " .. name .. ": " .. sel
-				list.Visible = false
-				open = false
-				if callback then pcall(callback, sel) end
-			end)
+			ob.MouseButton1Click:Connect(function() sel = o; btn.Text = "▼  " .. name .. ": " .. sel; list.Visible = false; open = false; if callback then pcall(callback, sel) end end)
 		end
 	end
 	buildOpts()
-	
 	local function updatePos()
-		local bp = box.AbsolutePosition
-		local bs = box.AbsoluteSize
-		local totalH = math.min(listLayout.AbsoluteContentSize.Y + 4, 250)
-		local screenH = GS:GetScreenResolution().Y
-		
-		if bp.Y + bs.Y + 3 + totalH > screenH then
-			list.Position = UDim2.new(0, bp.X, 0, bp.Y - totalH - 3)
-		else
-			list.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3)
-		end
-		list.Size = UDim2.new(0, bs.X, 0, totalH)
-		listScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 2)
+		local bp = box.AbsolutePosition; local bs = box.AbsoluteSize; local totalH = math.min(listLayout.AbsoluteContentSize.Y + 4, 250); local screenH = GS:GetScreenResolution().Y
+		if bp.Y + bs.Y + 3 + totalH > screenH then list.Position = UDim2.new(0, bp.X, 0, bp.Y - totalH - 3) else list.Position = UDim2.new(0, bp.X, 0, bp.Y + bs.Y + 3) end
+		list.Size = UDim2.new(0, bs.X, 0, totalH); listScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 2)
 	end
-	
-	btn.MouseButton1Click:Connect(function()
-		open = not open
-		if open then
-			updatePos()
-			list.Visible = true
-			btn.Text = "▲  " .. name .. ": " .. sel
-		else
-			list.Visible = false
-			btn.Text = "▼  " .. name .. ": " .. sel
-		end
-	end)
-	
+	btn.MouseButton1Click:Connect(function() open = not open; if open then updatePos(); list.Visible = true; btn.Text = "▲  " .. name .. ": " .. sel else list.Visible = false; btn.Text = "▼  " .. name .. ": " .. sel end end)
 	UIS.InputBegan:Connect(function(input)
 		if open and input.UserInputType == Enum.UserInputType.MouseButton1 then
-			local m = UIS:GetMouseLocation()
-			local lp = list.AbsolutePosition
-			local ls = list.AbsoluteSize
-			local bp2 = box.AbsolutePosition
-			local bs2 = box.AbsoluteSize
-			if (m.X < lp.X or m.X > lp.X + ls.X or m.Y < lp.Y or m.Y > lp.Y + ls.Y) and
-			   (m.X < bp2.X or m.X > bp2.X + bs2.X or m.Y < bp2.Y or m.Y > bp2.Y + bs2.Y) then
-				open = false
-				list.Visible = false
-				btn.Text = "▼  " .. name .. ": " .. sel
-			end
+			local m = UIS:GetMouseLocation(); local lp = list.AbsolutePosition; local ls = list.AbsoluteSize; local bp2 = box.AbsolutePosition; local bs2 = box.AbsoluteSize
+			if (m.X < lp.X or m.X > lp.X + ls.X or m.Y < lp.Y or m.Y > lp.Y + ls.Y) and (m.X < bp2.X or m.X > bp2.X + bs2.X or m.Y < bp2.Y or m.Y > bp2.Y + bs2.Y) then open = false; list.Visible = false; btn.Text = "▼  " .. name .. ": " .. sel end
 		end
 	end)
-	
-	return {
-		Get = function() return sel end,
-		Set = function(o) sel = o; btn.Text = "▼  " .. name .. ": " .. sel; if callback then pcall(callback, sel) end end,
-		Update = function(opts) options = opts; buildOpts() end
-	}
+	return { Get = function() return sel end, Set = function(o) sel = o; btn.Text = "▼  " .. name .. ": " .. sel; if callback then pcall(callback, sel) end end, Update = function(opts) options = opts; buildOpts() end }
 end
 
 -- ==================== COLOR ====================
 function ModMenu:Color(name, default, callback)
-	default = default or Color3.new(1, 1, 1)
-	local col = default
-	
-	local box = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 50),
-		BackgroundColor3 = T.Sf,
-		Parent = self._activeFrame or self._funcScroll
-	})
+	default = default or Color3.new(1, 1, 1); local col = default
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
-	
-	Create("TextLabel", {
-		Size = UDim2.new(1, -24, 0, 18),
-		Position = UDim2.new(0, 14, 0, 3),
-		BackgroundTransparency = 1,
-		Text = name,
-		TextColor3 = T.Tx,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = box
-	})
-	
-	local pf = Create("Frame", {
-		Size = UDim2.new(1, -28, 0, 26),
-		Position = UDim2.new(0, 14, 0, 23),
-		BackgroundTransparency = 1,
-		Parent = box
-	})
-	Create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		Padding = UDim.new(0, 6),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = pf
-	})
-	
-	local presets = {
-		Color3.new(1,1,1), Color3.new(0.7,0.7,0.7), Color3.new(0.5,0.5,0.5),
-		Color3.new(0.3,0.3,0.3), Color3.new(1,0.3,0.3), Color3.new(0.3,1,0.3),
-		Color3.new(0.3,0.3,1)
-	}
-	
+	Create("TextLabel", { Size = UDim2.new(1, -24, 0, 18), Position = UDim2.new(0, 14, 0, 3), BackgroundTransparency = 1, Text = name, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	local pf = Create("Frame", { Size = UDim2.new(1, -28, 0, 26), Position = UDim2.new(0, 14, 0, 23), BackgroundTransparency = 1, Parent = box })
+	Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = pf })
+	local presets = { Color3.new(1,1,1), Color3.new(0.7,0.7,0.7), Color3.new(0.5,0.5,0.5), Color3.new(0.3,0.3,0.3), Color3.new(1,0.3,0.3), Color3.new(0.3,1,0.3), Color3.new(0.3,0.3,1) }
 	local selFrame = nil
 	for _, p in ipairs(presets) do
-		local cb = Create("TextButton", {
-			Size = UDim2.new(0, 22, 0, 22),
-			BackgroundColor3 = p,
-			Text = "",
-			Parent = pf
-		})
+		local cb = Create("TextButton", { Size = UDim2.new(0, 22, 0, 22), BackgroundColor3 = p, Text = "", Parent = pf })
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = cb })
-		if p == col then
-			Create("UIStroke", { Thickness = 2, Color = T.On, Parent = cb })
-			selFrame = cb
-		end
+		if p == col then Create("UIStroke", { Thickness = 2, Color = T.On, Parent = cb }); selFrame = cb end
 		cb.MouseButton1Click:Connect(function()
-			if selFrame then
-				local s = selFrame:FindFirstChildOfClass("UIStroke")
-				if s then s:Destroy() end
-			end
-			Create("UIStroke", { Thickness = 2, Color = T.On, Parent = cb })
-			selFrame = cb
-			col = p
-			if callback then pcall(callback, col) end
+			if selFrame then local s = selFrame:FindFirstChildOfClass("UIStroke"); if s then s:Destroy() end end
+			Create("UIStroke", { Thickness = 2, Color = T.On, Parent = cb }); selFrame = cb; col = p; if callback then pcall(callback, col) end
 		end)
 	end
-	
-	return {
-		Get = function() return col end,
-		Set = function(c) col = c; if callback then pcall(callback, col) end end
-	}
+	return { Get = function() return col end, Set = function(c) col = c; if callback then pcall(callback, col) end end }
 end
 
 -- ==================== INPUT ====================
 function ModMenu:Input(name, placeholder, default, callback)
-	default = default or ""
-	placeholder = placeholder or "Enter text..."
+	default = default or ""; placeholder = placeholder or "Enter text..."
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll })
+	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
+	local inp = Create("TextBox", { Size = UDim2.new(1, -28, 0, 28), Position = UDim2.new(0, 14, 0, 6), BackgroundColor3 = T.Sf2, Text = default, PlaceholderText = placeholder, TextColor3 = T.Tx, PlaceholderColor3 = T.Tx2, Font = Enum.Font.GothamSemibold, TextSize = 13, ClearTextOnFocus = false, Parent = box })
+	Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = inp })
+	inp.FocusLost:Connect(function(enter) if callback then pcall(callback, inp.Text, enter) end end)
+	return { Get = function() return inp.Text end, Set = function(text) inp.Text = text end, Clear = function() inp.Text = "" end }
+end
+
+-- ==================== KEYBIND (НОВОЕ) ====================
+function ModMenu:KeyBind(name, defaultKey, callback)
+	defaultKey = defaultKey or Enum.KeyCode.R
+	local currentKey = defaultKey
+	local listening = false
 	
-	local box = Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 40),
-		BackgroundColor3 = T.Sf,
-		Parent = self._activeFrame or self._funcScroll
-	})
+	local box = Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.Sf, Parent = self._activeFrame or self._funcScroll })
 	Create("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
 	
-	local inp = Create("TextBox", {
-		Size = UDim2.new(1, -28, 0, 28),
-		Position = UDim2.new(0, 14, 0, 6),
-		BackgroundColor3 = T.Sf2,
-		Text = default,
-		PlaceholderText = placeholder,
-		TextColor3 = T.Tx,
-		PlaceholderColor3 = T.Tx2,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 13,
-		ClearTextOnFocus = false,
-		Parent = box
-	})
-	Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = inp })
+	Create("TextLabel", { Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0, 14, 0, 0), BackgroundTransparency = 1, Text = name, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
 	
-	inp.FocusLost:Connect(function(enter)
-		if callback then pcall(callback, inp.Text, enter) end
+	local bindBtn = Create("TextButton", { Size = UDim2.new(0, 100, 0, 28), Position = UDim2.new(1, -114, 0.5, -14), BackgroundColor3 = T.Sf2, Text = currentKey.Name, TextColor3 = T.Tx, Font = Enum.Font.GothamSemibold, TextSize = 12, Parent = box })
+	Create("UICorner", { CornerRadius = UDim.new(0, 5), Parent = bindBtn })
+	
+	local connection = nil
+	
+	local function startListening()
+		listening = true
+		bindBtn.Text = "..."
+		connection = UIS.InputBegan:Connect(function(input, gpe)
+			if gpe then return end
+			if input.UserInputType == Enum.UserInputType.Keyboard then
+				currentKey = input.KeyCode
+				bindBtn.Text = currentKey.Name
+				listening = false
+				if connection then connection:Disconnect(); connection = nil end
+				-- Обновляем бинд в таблице
+				self._binds[currentKey] = callback
+			end
+		end)
+	end
+	
+	bindBtn.MouseButton1Click:Connect(function()
+		if listening then
+			listening = false
+			if connection then connection:Disconnect(); connection = nil end
+			bindBtn.Text = currentKey.Name
+		else
+			startListening()
+		end
+	end)
+	
+	-- Регистрируем изначальный бинд
+	self._binds[currentKey] = callback
+	
+	-- Обработчик биндов
+	UIS.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if self._binds[input.KeyCode] then
+			pcall(self._binds[input.KeyCode])
+		end
 	end)
 	
 	return {
-		Get = function() return inp.Text end,
-		Set = function(text) inp.Text = text end,
-		Clear = function() inp.Text = "" end
+		SetKey = function(key)
+			currentKey = key
+			bindBtn.Text = key.Name
+			self._binds[key] = callback
+		end,
+		GetKey = function() return currentKey end
 	}
 end
 
