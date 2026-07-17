@@ -1,12 +1,5 @@
-# 🌸 NekoUI Library v4.1
-
-> Dark Minimal UI Library для Roblox Executors
-> Стильный, адаптивный, с поддержкой мобильных устройств
-
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Roblox](https://img.shields.io/badge/platform-Roblox-red.svg)](https://roblox.com)
-[![Version](https://img.shields.io/badge/version-4.1-pink.svg)](https://github.com/dVAZik)
-
+# 🌸 NekoUI Library v4.2
+> Dark Minimal UI Library for Roblox Executors  
 ---
 
 ## 📦 Установка
@@ -17,156 +10,171 @@ local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/96
 lua
 local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/dVAZik/963f736e-9875-4e08-82a8-fce37410a32a/refs/heads/main/Library"))()
 
-local menu = lib.new("My Script")
+local menu = lib.new("My Script") -- Создание меню
 
-menu:Category("Main")
-menu:Toggle("Auto Farm", false, function(on) print("Farm:", on) end)
-menu:Slider("Speed", 16, 200, 16, function(v) print("Speed:", v) end)
-menu:Button("Click Me", function() print("Clicked!") end)
+menu:Category("Main")             -- Вкладка
+
+menu:Toggle("Auto Farm", false, function(on)
+    print("Farm:", on)
+end)
+
+menu:Slider("Speed", 16, 200, 16, function(v)
+    print("Speed:", v)
+end)
+
+menu:Button("Click Me", function()
+    print("Clicked!")
+end)
 🎮 Управление
 Клавиша	Действие
 Insert	Открыть/закрыть меню (ПК)
 ☰ Кнопка	Открыть/закрыть меню (Мобильные)
 Перетаскивание заголовка	Перемещение окна
-Перетаскивание ☰	Перемещение мобильной кнопки
-✕	Закрыть меню
 📚 Все методы
 lib.new(name)
 Создаёт главное окно меню
 
 Параметр	Тип	Описание
 name	string	Название скрипта (отображается в заголовке)
-Возвращает: объект меню
-
 lua
 local menu = lib.new("My Script")
 menu:Category(name)
-Создаёт вкладку-категорию. Все последующие элементы добавляются в эту категорию.
+Создаёт вкладку-категорию. Все последующие элементы добавляются в неё.
 
 Параметр	Тип	Описание
-name	string	Название категории
+name	string	Название вкладки
 lua
+menu:Category("Main")
 menu:Category("Player")
 menu:Category("Visuals")
-menu:Category("Settings")
 menu:Toggle(name, default, callback)
-Создаёт переключатель (Вкл/Выкл) с анимированным ползунком.
+Создаёт переключатель с анимированным ползунком.
 
 Параметр	Тип	Описание
-name	string	Название функции
+name	string	Название
 default	boolean	Начальное состояние
-callback	function(enabled)	Вызывается при переключении
-Возвращает контроллер: { On, Off, Toggle, State }
+callback	function(on)	Вызывается при переключении
+Возвращает: { On, Off, Toggle, State }
 
 lua
 local farm = menu:Toggle("Auto Farm", false, function(on)
     print("Farm:", on)
 end)
 
--- Методы контроллера:
 farm:On()       -- Включить
 farm:Off()      -- Выключить
 farm:Toggle()   -- Переключить
-farm:State()    -- Получить состояние (true/false)
+print(farm:State()) -- Получить состояние
 menu:Slider(name, min, max, default, callback)
-Создаёт ползунок для выбора числового значения.
+Создаёт ползунок для числовых значений.
 
 Параметр	Тип	Описание
 name	string	Название
-min	number	Минимальное значение
-max	number	Максимальное значение
+min	number	Минимум
+max	number	Максимум
 default	number	Значение по умолчанию
-callback	function(value)	Вызывается при изменении
-Возвращает контроллер: { Set, Get, Add, Sub }
+callback	function(v)	Вызывается при изменении
+Возвращает: { Set, Get, Add, Sub }
 
 lua
 local speed = menu:Slider("Walk Speed", 16, 200, 16, function(v)
     game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = v
 end)
 
--- Методы контроллера:
-speed:Set(50)   -- Установить значение
-speed:Get()     -- Получить значение
-speed:Add(10)   -- Увеличить на 10
-speed:Sub(5)    -- Уменьшить на 5
+speed:Set(50)   -- Установить
+print(speed:Get()) -- Получить
+speed:Add(10)   -- +10
+speed:Sub(5)    -- -5
 menu:Button(name, callback)
 Создаёт кнопку с анимацией нажатия.
 
 Параметр	Тип	Описание
 name	string	Текст на кнопке
-callback	function()	Вызывается при нажатии
-Возвращает контроллер: { Click }
+callback	function()	Вызывается при клике
+Возвращает: { Click }
 
 lua
-local respawn = menu:Button("Respawn", function()
+menu:Button("Respawn", function()
     game.Players.LocalPlayer.Character:BreakJoints()
 end)
-
--- Метод контроллера:
-respawn:Click() -- Программный клик
 menu:Dropdown(name, options, default, callback)
 Создаёт выпадающий список с прокруткой.
 
 Параметр	Тип	Описание
 name	string	Название
-options	table	Список опций: {"Опция1", "Опция2"}
-default	string	Опция по умолчанию
-callback	function(selected)	Вызывается при выборе
-Возвращает контроллер: { Get, Set, Update }
+options	table	Список: {"A", "B", "C"}
+default	string	По умолчанию
+callback	function(v)	При выборе
+Возвращает: { Get, Set, Update }
 
 lua
-local aim = menu:Dropdown("Aim Type", {"Silent", "Lock", "Trigger"}, "Silent", function(v)
-    print("Selected:", v)
+local mode = menu:Dropdown("Mode", {"Easy", "Hard"}, "Easy", function(v)
+    print("Mode:", v)
 end)
 
--- Методы контроллера:
-aim:Get()                    -- Получить выбранное
-aim:Set("Lock")              -- Установить опцию
-aim:Update({"A", "B", "C"})  -- Обновить список опций
+print(mode:Get())        -- Текущее
+mode:Set("Hard")         -- Сменить
+mode:Update({"A", "B"})  -- Обновить список
 menu:Color(name, default, callback)
-Создаёт палитру выбора цвета из пресетов.
+Создаёт палитру выбора цвета из 7 пресетов.
 
 Параметр	Тип	Описание
 name	string	Название
 default	Color3	Цвет по умолчанию
-callback	function(color)	Вызывается при выборе
-Возвращает контроллер: { Get, Set }
+callback	function(c)	При выборе
+Возвращает: { Get, Set }
 
 lua
 local col = menu:Color("ESP Color", Color3.new(1,1,1), function(c)
     print("Color:", c)
 end)
 
--- Методы контроллера:
-col:Get()                  -- Получить цвет
-col:Set(Color3.new(1,0,0)) -- Установить цвет
+print(col:Get())              -- Текущий цвет
+col:Set(Color3.new(1,0,0))   -- Установить красный
 menu:Input(name, placeholder, default, callback)
 Создаёт поле ввода текста.
 
 Параметр	Тип	Описание
-name	string	Название (не отображается)
-placeholder	string	Текст-подсказка
+name	string	Название
+placeholder	string	Подсказка
 default	string	Текст по умолчанию
-callback	function(text, enterPressed)	Вызывается при потере фокуса
-Возвращает контроллер: { Get, Set, Clear }
+callback	function(text, enter)	При потере фокуса
+Возвращает: { Get, Set, Clear }
 
 lua
-local search = menu:Input("Search", "Type name...", "", function(text, enter)
+local inp = menu:Input("Search", "Type...", "", function(text, enter)
     if enter then print("Search:", text) end
 end)
 
--- Методы контроллера:
-search:Get()          -- Получить текст
-search:Set("hello")   -- Установить текст
-search:Clear()        -- Очистить
+print(inp:Get())     -- Текст
+inp:Set("hello")     -- Установить
+inp:Clear()          -- Очистить
+menu:KeyBind(name, defaultKey, callback) 🆕
+Создаёт настраиваемую привязку клавиши.
+Кликните по кнопке, затем нажмите нужную клавишу.
+
+Параметр	Тип	Описание
+name	string	Название действия
+defaultKey	KeyCode	Клавиша по умолчанию
+callback	function()	Вызывается при нажатии
+Возвращает: { SetKey, GetKey }
+
+lua
+menu:KeyBind("Сортировка", Enum.KeyCode.R, function()
+    print("Сортируем...")
+    sortItems()
+end)
+
+menu:KeyBind("Продажа", Enum.KeyCode.T, function()
+    print("Продаём...")
+    sellAll()
+end)
 📱 Мобильная поддержка
-Автоматическое определение устройства (Touch + нет клавиатуры/мыши)
+Автоматически: на ПК меню открыто, на мобильных — скрыто
 
-Плавающая кнопка ☰ в правом нижнем углу
+Круглая кнопка ☰ в правом нижнем углу (можно перетаскивать)
 
-Кнопку можно перетаскивать
-
-На ПК меню открыто сразу, на мобильных — скрыто
+Все элементы работают с тач-вводом
 
 🤝 Поддержка платформ
 Executor	Статус
